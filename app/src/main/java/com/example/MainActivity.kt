@@ -70,6 +70,9 @@ fun MareaClubApp(viewModel: MareaViewModel) {
     val showCustomizationDialog by viewModel.showCustomizationDialog.collectAsStateWithLifecycle()
     val showMenuDialog by viewModel.showMenuDialog.collectAsStateWithLifecycle()
     val showArchivoCorrientes by viewModel.showArchivoCorrientes.collectAsStateWithLifecycle()
+    val weekHasEnoughData by viewModel.weekHasEnoughData.collectAsStateWithLifecycle()
+    var showPrivacyDialog by remember { mutableStateOf(false) }
+    var showResetDialog by remember { mutableStateOf(false) }
 
     // Screen dynamic background color
     val currentBgColor by animateColorAsState(
@@ -100,10 +103,12 @@ fun MareaClubApp(viewModel: MareaViewModel) {
 
     // Active interactive activity takes priority
     if (activeActivity != null) {
+        val running = activeActivity!!
         ActivityRunnerScreen(
-            activity = activeActivity!!,
+            activity = running,
             onClose = { viewModel.closeActiveActivity() },
-            onComplete = { viewModel.completeCurrentActivity(activeActivity!!) }
+            onComplete = { viewModel.completeCurrentActivity(running) },
+            onSaveDiary = { prompt, text -> viewModel.saveDiaryEntry(prompt, text) }
         )
         return
     }
@@ -118,7 +123,8 @@ fun MareaClubApp(viewModel: MareaViewModel) {
                     viewModel.logMarea(marea, sit, time, loc, note)
                 },
                 onLaunchActivity = { viewModel.openActivity(it) },
-                onBack = { activeSubScreen = null }
+                onBack = { activeSubScreen = null },
+                onOpenSupportDirectory = { activeSubScreen = SubScreen.DIRECTORY }
             )
             return
         }
@@ -213,7 +219,8 @@ fun MareaClubApp(viewModel: MareaViewModel) {
                             viewModel.logMarea(marea, sit, time, loc, note)
                         },
                         onLaunchActivity = { viewModel.openActivity(it) },
-                        onBack = { viewModel.selectTab(BottomNavTab.HOME) }
+                        onBack = { viewModel.selectTab(BottomNavTab.HOME) },
+                        onOpenSupportDirectory = { activeSubScreen = SubScreen.DIRECTORY }
                     )
                 }
 
@@ -222,7 +229,9 @@ fun MareaClubApp(viewModel: MareaViewModel) {
                         islandState = islandState,
                         allIslandElements = viewModel.allIslandElements,
                         onNavigateToActivities = { viewModel.selectTab(BottomNavTab.BURBUJA) },
-                        onOpenCustomization = { viewModel.setCustomizationDialogVisible(true) }
+                        onOpenCustomization = { viewModel.setCustomizationDialogVisible(true) },
+                        onElementOpened = { viewModel.markElementSeen(it) },
+                        onNavigateToProgress = { viewModel.selectTab(BottomNavTab.PROGRESS) }
                     )
                 }
 
@@ -230,7 +239,7 @@ fun MareaClubApp(viewModel: MareaViewModel) {
                     BurbujaScreen(
                         availableActivities = viewModel.availableActivities,
                         onOpenActivity = { viewModel.openActivity(it) },
-                        onActivityCompleted = { viewModel.repository.completeCalmActivity(it) }
+                        onActivityCompleted = { viewModel.completeTool(it) }
                     )
                 }
 
@@ -243,7 +252,9 @@ fun MareaClubApp(viewModel: MareaViewModel) {
                         reflections = reflections,
                         availableActivities = viewModel.availableActivities,
                         onOpenReflection = { viewModel.setReflectionDialogVisible(true) },
-                        onOpenActivity = { viewModel.openActivity(it) }
+                        onOpenActivity = { viewModel.openActivity(it) },
+                        weekHasEnoughData = weekHasEnoughData,
+                        onDeleteReflection = { viewModel.deleteReflection(it) }
                     )
                 }
             }
@@ -251,14 +262,12 @@ fun MareaClubApp(viewModel: MareaViewModel) {
     }
 
     // Reward Celebration Dialog
-    if (earnedReward != null) {
-        val (rewardTitle, rewardIcon) = earnedReward!!
+    earnedReward?.let { reward ->
         RewardCelebrationDialog(
-            rewardTitle = rewardTitle,
-            rewardIcon = rewardIcon,
-            onDismiss = { viewModel.dismissRewardDialog() },
-            onGoToIsland = {
-                viewModel.dismissRewardDialog()
+            reward = reward,
+            onDismiss = { feedback -> viewModel.dismissRewardDialog(feedback) },
+            onGoToIsland = { feedback ->
+                viewModel.dismissRewardDialog(feedback)
                 viewModel.selectTab(BottomNavTab.ISLAND)
             }
         )
@@ -287,14 +296,32 @@ fun MareaClubApp(viewModel: MareaViewModel) {
             onOpenSupport = { activeSubScreen = SubScreen.DIRECTORY },
             onOpenSelfEvaluation = { activeSubScreen = SubScreen.SELF_EVALUATION },
             onOpenAnonymousConsultation = { activeSubScreen = SubScreen.ANONYMOUS_CONSULTATION },
-            onReplayWelcome = { forceShowWelcome = true }
+            onReplayWelcome = { forceShowWelcome = true },
+            onOpenPrivacy = { showPrivacyDialog = true },
+            onResetData = { showResetDialog = true }
+        )
+    }
+
+    if (showPrivacyDialog) {
+        PrivacyInfoDialog(onDismiss = { showPrivacyDialog = false })
+    }
+
+    if (showResetDialog) {
+        ResetDataDialog(
+            onConfirm = {
+                showResetDialog = false
+                activeSubScreen = null
+                viewModel.resetAllData()
+            },
+            onDismiss = { showResetDialog = false }
         )
     }
 
     if (showArchivoCorrientes) {
         ArchivoCorrientesDialog(
             logs = logs,
-            onDismiss = { viewModel.setArchivoCorrientesVisible(false) }
+            onDismiss = { viewModel.setArchivoCorrientesVisible(false) },
+            onDeleteLog = { viewModel.deleteLog(it) }
         )
     }
 }

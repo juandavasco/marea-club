@@ -29,7 +29,9 @@ fun MenuDotsDialog(
     onOpenSupport: () -> Unit,
     onOpenSelfEvaluation: () -> Unit,
     onOpenAnonymousConsultation: () -> Unit,
-    onReplayWelcome: () -> Unit
+    onReplayWelcome: () -> Unit,
+    onOpenPrivacy: () -> Unit = {},
+    onResetData: () -> Unit = {}
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -79,7 +81,7 @@ fun MenuDotsDialog(
                 MenuItemRow(
                     icon = Icons.Default.Healing,
                     title = "Rutas de Atención (Medellín)",
-                    subtitle = "Línea Amiga 106, Escuchaderos y apoyo",
+                    subtitle = "Línea 106, Línea Amiga, Escuchaderos y 123",
                     tag = "menu_support_button",
                     onClick = {
                         onDismiss()
@@ -105,7 +107,7 @@ fun MenuDotsDialog(
                 MenuItemRow(
                     icon = Icons.Default.Lock,
                     title = "Consulta Anónima",
-                    subtitle = "Canal seguro de orientación sin datos personales",
+                    subtitle = "Demostración: nadie lee estos mensajes",
                     tag = "menu_anonymous_button",
                     onClick = {
                         onDismiss()
@@ -123,6 +125,32 @@ fun MenuDotsDialog(
                     onClick = {
                         onDismiss()
                         onReplayWelcome()
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                MenuItemRow(
+                    icon = Icons.Default.Lock,
+                    title = "Tus datos y privacidad",
+                    subtitle = "Qué se guarda, dónde y cómo borrarlo",
+                    tag = "menu_privacy_button",
+                    onClick = {
+                        onDismiss()
+                        onOpenPrivacy()
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                MenuItemRow(
+                    icon = Icons.Default.Close,
+                    title = "Borrar todos mis datos",
+                    subtitle = "Deja la app como recién instalada (pide confirmación)",
+                    tag = "menu_reset_button",
+                    onClick = {
+                        onDismiss()
+                        onResetData()
                     }
                 )
 

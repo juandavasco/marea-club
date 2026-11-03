@@ -97,30 +97,44 @@ fun AnonymousConsultationScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    // Siempre visible (§15): aviso de demostración + ayuda humana a un toque
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .testTag("anonymous_demo_banner")
                     ) {
-                        Text("🚨", fontSize = 14.sp)
                         Text(
-                            text = "¿Necesitas apoyo humano urgente en Medellín?",
+                            text = "Esto es una demostración: ninguna persona lee estos mensajes.",
+                            fontFamily = QuicksandFontFamily,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                            color = MareaTextDark
+                        )
+                        Text(
+                            text = "Para hablar con alguien de verdad, llama gratis a la Línea 106 (24 h). En peligro: 123.",
                             fontFamily = NunitoFontFamily,
                             fontSize = 11.sp,
                             color = MareaTextDark
                         )
                     }
 
-                    TextButton(
-                        onClick = onOpenSupportDirectory,
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "Línea 106 ➔",
-                            fontFamily = QuicksandFontFamily,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                            color = MareaDeepBlue
-                        )
+                    Column(horizontalAlignment = Alignment.End) {
+                        Button(
+                            onClick = { dialQuick(context, com.example.data.MareaContent.URGENT_PHONE) },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = MareaDeepBlue),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                            modifier = Modifier.testTag("anonymous_call_106")
+                        ) {
+                            Text("Llamar 106", fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.White)
+                        }
+                        TextButton(
+                            onClick = onOpenSupportDirectory,
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                            modifier = Modifier.testTag("anonymous_open_routes")
+                        ) {
+                            Text("Rutas ➔", fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = MareaDeepBlue)
+                        }
                     }
                 }
             }
@@ -155,13 +169,13 @@ fun AnonymousConsultationScreen(
                             )
                             Column {
                                 Text(
-                                    text = "Rincón de desahogo confidencial",
+                                    text = "Rincón de desahogo (demostración)",
                                     fontFamily = SnigletFontFamily,
                                     fontSize = 14.sp,
                                     color = MareaTextDark
                                 )
                                 Text(
-                                    text = "No te pedimos nombre ni colegio. Puedes escribir aquí lo que estás viviendo. Te daremos pautas de orientación y las rutas que te pueden acompañar.",
+                                    text = "No te pedimos nombre ni colegio. Escribir lo que vives puede ayudarte a ordenarlo. Muni responde con un mensaje automático y las rutas de apoyo; ninguna persona lee lo que escribes.",
                                     fontFamily = NunitoFontFamily,
                                     fontSize = 11.sp,
                                     lineHeight = 15.sp,
@@ -297,13 +311,13 @@ fun AnonymousConsultationScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "• Anonimato: No guardamos tu nombre ni información de identidad personal.",
+                        text = "• Demostración: ninguna persona lee estos mensajes; Muni responde con un texto automático.",
                         fontFamily = NunitoFontFamily,
                         fontSize = 12.sp,
                         color = MareaTextDark
                     )
                     Text(
-                        text = "• Almacenamiento local: Tus consultas se guardan únicamente en la memoria de este teléfono.",
+                        text = "• Almacenamiento local: tus consultas se guardan cifradas solo en este teléfono y se borran con «Borrar todos mis datos».",
                         fontFamily = NunitoFontFamily,
                         fontSize = 12.sp,
                         color = MareaTextDark
@@ -315,7 +329,7 @@ fun AnonymousConsultationScreen(
                         color = MareaTextDark
                     )
                     Text(
-                        text = "• Emergencias: Si estás en riesgo inminente, comunícate de inmediato con la Línea 106 o 123 Social.",
+                        text = "• Emergencias: si estás en riesgo, llama de inmediato a la Línea 106 o al 123.",
                         fontFamily = NunitoFontFamily,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
@@ -445,7 +459,7 @@ private fun ConsultationMessageBubble(
                                 onClick = onOpenDirectory,
                                 contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                             ) {
-                                Text("Ver rutas ➔", fontFamily = QuicksandFontFamily, fontSize = 11.sp, color = MareaTealBar)
+                                Text("Ver rutas ➔", fontFamily = QuicksandFontFamily, fontSize = 11.sp, color = MareaTealText)
                             }
                         }
                     }

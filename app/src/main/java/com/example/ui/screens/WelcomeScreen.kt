@@ -117,6 +117,14 @@ fun WelcomeScreen(
                 title = "Acompañado por Muni",
                 description = "Un compañero cercano que te orienta con herramientas de calma y te recuerda que ninguna tormenta es para siempre."
             )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            PillarCard(
+                icon = "🔒",
+                title = com.example.ui.dialogs.PrivacyText.TITLE,
+                description = "Todo se guarda cifrado solo en este teléfono: sin internet, sin cuentas y sin copia en la nube. Puedes borrarlo cuando quieras desde el menú. Marea Club acompaña, pero no diagnostica ni reemplaza a un profesional."
+            )
         }
 
         Spacer(modifier = Modifier.height(28.dp))
@@ -129,7 +137,7 @@ fun WelcomeScreen(
             Button(
                 onClick = onStartClick,
                 shape = RoundedCornerShape(24.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MareaTealBar),
+                colors = ButtonDefaults.buttonColors(containerColor = MareaTealText),
                 modifier = Modifier
                     .fillMaxWidth(0.9f)
                     .height(52.dp)
@@ -147,7 +155,7 @@ fun WelcomeScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = "Dirigido a niños y preadolescentes · Seguro y confidencial",
+                text = "Para preadolescentes de ${com.example.data.MareaContent.AGE_RANGE_LABEL} años · Si eres menor de edad, cuéntale a tu acudiente que usas la app",
                 fontFamily = NunitoFontFamily,
                 fontSize = 11.sp,
                 color = MareaTextMuted,

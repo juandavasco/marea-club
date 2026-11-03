@@ -39,6 +39,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.example.R
+import com.example.domain.IslandRules
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.example.model.IslandElement
 import com.example.model.IslandState
 import com.example.model.SkyMode
@@ -66,10 +69,17 @@ fun IslandScreen(
     allIslandElements: List<IslandElement>,
     onNavigateToActivities: () -> Unit,
     onOpenCustomization: () -> Unit,
+    onElementOpened: (String) -> Unit = {},
+    onNavigateToProgress: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
     var inspectedElement by remember { mutableStateOf<IslandElement?>(null) }
+    // Al abrir un elemento desbloqueado deja de mostrarse como "Nuevo".
+    LaunchedEffect(inspectedElement) {
+        val opened = inspectedElement
+        if (opened != null && opened.id in islandState.unlockedElementIds) onElementOpened(opened.id)
+    }
     var inspectedZone by remember { mutableStateOf<IslandZone?>(null) }
 
     // Interactive Zoom and Pan state
@@ -140,12 +150,7 @@ fun IslandScreen(
 
             // Stage indicator subtitle
             Text(
-                text = "Etapa ${islandState.stage} · ${when (islandState.stage) {
-                    1 -> "Descubrimiento"
-                    2 -> "Crecimiento"
-                    3 -> "Desarrollo"
-                    else -> "Consolidación"
-                }} (${islandState.skyMode.title})",
+                text = "Nivel ${islandState.level} · ${islandState.unlockedElementIds.size} de ${IslandRules.totalElements} elementos (${islandState.skyMode.title})",
                 fontFamily = QuicksandFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp,
@@ -223,6 +228,15 @@ fun IslandScreen(
                         pins.forEach { pin ->
                             val elem = allIslandElements.firstOrNull { it.id == pin.elementId }
                             val isUnlocked = elem?.let { islandState.unlockedElementIds.contains(it.id) } == true
+                            // Estados (§7): bloqueado, nuevo (desbloqueado sin explorar), desbloqueado, seleccionado
+                            val isNew = isUnlocked && pin.elementId !in islandState.seenElementIds
+                            val isSelectedPin = inspectedElement?.id == pin.elementId
+                            val pinState = when {
+                                isSelectedPin -> "seleccionado"
+                                !isUnlocked -> "bloqueado"
+                                isNew -> "nuevo, por explorar"
+                                else -> "desbloqueado"
+                            }
 
                             Box(
                                 modifier = Modifier
@@ -232,8 +246,13 @@ fun IslandScreen(
                                     shape = CircleShape,
                                     color = if (isUnlocked) Color.White.copy(alpha = 0.95f) else Color(0xFF0E4273).copy(alpha = 0.7f),
                                     border = androidx.compose.foundation.BorderStroke(
-                                        1.5.dp,
-                                        if (isUnlocked) Color(0xFF1D95D3) else Color.White.copy(alpha = 0.6f)
+                                        if (isSelectedPin || isNew) 3.dp else 1.5.dp,
+                                        when {
+                                            isSelectedPin -> MareaDeepBlue
+                                            isNew -> Color(0xFFFFC94D)
+                                            isUnlocked -> Color(0xFF1D95D3)
+                                            else -> Color.White.copy(alpha = 0.6f)
+                                        }
                                     ),
                                     shadowElevation = 3.dp,
                                     modifier = Modifier
@@ -242,7 +261,9 @@ fun IslandScreen(
                                             x = boxWidth * pin.relativeX - 14.dp,
                                             y = boxHeight * pin.relativeY - 14.dp
                                         )
-                                        .size(28.dp)
+                                        .size(if (isSelectedPin) 34.dp else 28.dp)
+                                        .testTag("island_pin_${pin.elementId}")
+                                        .semantics { contentDescription = "${elem?.name ?: pin.elementId}: $pinState" }
                                         .clickable {
                                             elem?.let { inspectedElement = it }
                                         }
@@ -499,7 +520,9 @@ fun IslandScreen(
                             )
 
                             Text(
-                                text = "Completa una actividad de autocuidado para descubrir algo nuevo para tu isla",
+                                text = IslandRules.nextSuggestion(islandState.unlockedElementIds)?.let {
+                                    "Completa «${it.sourceTitle}» para que aparezca ${it.elementName} en tu isla."
+                                } ?: "¡Desbloqueaste todos los elementos! Puedes repetir cualquier actividad cuando la necesites.",
                                 fontFamily = NunitoFontFamily,
                                 fontSize = 12.sp,
                                 lineHeight = 16.sp,
@@ -611,9 +634,11 @@ fun IslandScreen(
 
                     allIslandElements.forEach { elem ->
                         val isUnlocked = islandState.unlockedElementIds.contains(elem.id)
+                        val isNewElem = isUnlocked && elem.id !in islandState.seenElementIds
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .testTag("island_element_${elem.id}")
                                 .padding(vertical = 4.dp)
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(if (isUnlocked) Color.White else Color.White.copy(alpha = 0.45f))
@@ -637,10 +662,16 @@ fun IslandScreen(
                             }
 
                             Text(
-                                text = if (isUnlocked) "Activo en isla" else "Desbloquear en Etapa ${elem.stage}",
+                                text = when {
+                                    isNewElem -> "¡Nuevo! Tócalo"
+                                    isUnlocked -> "En tu isla"
+                                    else -> "Con «${IslandRules.unlockForElement(elem.id)?.sourceTitle ?: "una actividad"}»"
+                                },
                                 fontFamily = QuicksandFontFamily,
                                 fontSize = 11.sp,
-                                color = if (isUnlocked) Color(0xFF1B8255) else MareaDeepBlue
+                                color = if (isUnlocked) Color(0xFF1B6E47) else MareaDeepBlue,
+                                textAlign = TextAlign.End,
+                                modifier = Modifier.widthIn(max = 150.dp)
                             )
                         }
                     }
@@ -655,17 +686,9 @@ fun IslandScreen(
     if (inspectedElement != null) {
         val elem = inspectedElement!!
         val isUnlocked = islandState.unlockedElementIds.contains(elem.id)
-        val associatedActivityName = when (elem.id) {
-            "flores_coral" -> "Respiración del Océano (Flores de Coral)"
-            "farol_calma" -> "Respiración del Océano (Luz de Calma)"
-            "estanque_muni" -> "Brújula Emocional (Estanque Cristalino)"
-            "camino_caracoles" -> "Reto de Conchas y Perlas (Atención)"
-            "estrella_marina" -> "Constelación de Fortalezas (Autoestima)"
-            "arrecife_colores" -> "Lienzo de Expresión Libre (Creatividad)"
-            "sofa_azul", "muelle_madera" -> "Diario del Mar (Espacio de Desahogo)"
-            "arbol_verde" -> "Brújula Emocional (Autoconocimiento)"
-            else -> "Actividades de autocuidado de Marea Club"
-        }
+        val rule = IslandRules.unlockForElement(elem.id)
+        val associatedActivityName = rule?.sourceTitle ?: "Actividades de autocuidado"
+        val isReflection = rule?.sourceId == com.example.data.MareaRepository.SOURCE_WEEKLY_REFLECTION
 
         Dialog(onDismissRequest = { inspectedElement = null }) {
             Surface(
@@ -713,7 +736,7 @@ fun IslandScreen(
                             color = Color(0xFFC7E5EE)
                         ) {
                             Text(
-                                text = "Etapa ${elem.stage}",
+                                text = if (isUnlocked) "Desbloqueado" else "Bloqueado",
                                 fontFamily = QuicksandFontFamily,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp,
@@ -760,7 +783,7 @@ fun IslandScreen(
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Text(
-                                text = "Actividad asociada:",
+                                text = "Se desbloquea con:",
                                 fontFamily = QuicksandFontFamily,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp,
@@ -775,11 +798,11 @@ fun IslandScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = if (isUnlocked) "Estado: ✨ Desbloqueado en tu isla" else "Estado: 🔒 Por desbloquear al completar la actividad",
+                                text = if (isUnlocked) "Apareció en tu isla porque completaste «$associatedActivityName»." else "Aparecerá cuando completes «$associatedActivityName».",
                                 fontFamily = QuicksandFontFamily,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 11.sp,
-                                color = if (isUnlocked) Color(0xFF1B8255) else Color(0xFFB05615)
+                                color = if (isUnlocked) Color(0xFF1B6E47) else Color(0xFF9A4A10)
                             )
                         }
                     }
@@ -790,14 +813,20 @@ fun IslandScreen(
                     Button(
                         onClick = {
                             inspectedElement = null
-                            onNavigateToActivities()
+                            if (isReflection) onNavigateToProgress() else onNavigateToActivities()
                         },
                         shape = RoundedCornerShape(20.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MareaTealBar),
-                        modifier = Modifier.fillMaxWidth()
+                        colors = ButtonDefaults.buttonColors(containerColor = MareaTealText),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("island_element_go_button")
                     ) {
                         Text(
-                            text = if (isUnlocked) "Practicar actividad asociada ➔" else "Ir a la actividad para desbloquearlo ➔",
+                            text = when {
+                                isReflection -> "Ir a Mi progreso ➔"
+                                isUnlocked -> "Practicar de nuevo ➔"
+                                else -> "Ir a la actividad ➔"
+                            },
                             fontFamily = SnigletFontFamily,
                             fontSize = 13.sp,
                             color = Color.White
@@ -808,7 +837,9 @@ fun IslandScreen(
 
                     TextButton(
                         onClick = { inspectedElement = null },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("island_element_back_button")
                     ) {
                         Text(
                             text = "Volver a la isla",

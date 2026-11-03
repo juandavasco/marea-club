@@ -2,13 +2,11 @@ package com.example.ui
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
 import com.example.data.MareaRepository
 import com.example.model.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 
 class MareaViewModel(application: Application) : AndroidViewModel(application) {
     val repository = MareaRepository(application.applicationContext)
@@ -20,6 +18,7 @@ class MareaViewModel(application: Application) : AndroidViewModel(application) {
     val activitiesExploredCount = repository.activitiesExploredCount
     val reflections = repository.reflections
     val weeklyOverview = repository.weeklyOverview
+    val weekHasEnoughData = repository.weekHasEnoughData
     val isOnboarded = repository.isOnboarded
     val availableActivities = repository.availableActivities
     val allIslandElements = repository.allIslandElements
@@ -34,14 +33,10 @@ class MareaViewModel(application: Application) : AndroidViewModel(application) {
     private val _currentTab = MutableStateFlow(BottomNavTab.HOME)
     val currentTab: StateFlow<BottomNavTab> = _currentTab.asStateFlow()
 
-    private val _selectedMareaForDetail = MutableStateFlow<MareaType?>(null)
-    val selectedMareaForDetail: StateFlow<MareaType?> = _selectedMareaForDetail.asStateFlow()
-
-    // Activity runner state: when non-null, an interactive activity is active
+    /** Actividad interactiva abierta; null = ninguna. */
     private val _activeActivity = MutableStateFlow<ActivityItem?>(null)
     val activeActivity: StateFlow<ActivityItem?> = _activeActivity.asStateFlow()
 
-    // Dialogs
     private val _showReflectionDialog = MutableStateFlow(false)
     val showReflectionDialog: StateFlow<Boolean> = _showReflectionDialog.asStateFlow()
 
@@ -54,66 +49,69 @@ class MareaViewModel(application: Application) : AndroidViewModel(application) {
     private val _showArchivoCorrientes = MutableStateFlow(false)
     val showArchivoCorrientes: StateFlow<Boolean> = _showArchivoCorrientes.asStateFlow()
 
-    private val _showSupportDialog = MutableStateFlow(false)
-    val showSupportDialog: StateFlow<Boolean> = _showSupportDialog.asStateFlow()
+    /** Qué acción desbloqueó qué elemento; se muestra al terminar una actividad. */
+    private val _earnedReward = MutableStateFlow<RewardInfo?>(null)
+    val earnedReward: StateFlow<RewardInfo?> = _earnedReward.asStateFlow()
 
-    private val _showSelfEvaluation = MutableStateFlow(false)
-    val showSelfEvaluation: StateFlow<Boolean> = _showSelfEvaluation.asStateFlow()
-
-    private val _showAnonymousConsultation = MutableStateFlow(false)
-    val showAnonymousConsultation: StateFlow<Boolean> = _showAnonymousConsultation.asStateFlow()
-
-    private val _earnedReward = MutableStateFlow<Pair<String, String>?>(null)
-    val earnedReward: StateFlow<Pair<String, String>?> = _earnedReward.asStateFlow()
-
-    fun completeOnboarding() {
-        repository.completeOnboarding()
-    }
+    fun completeOnboarding() = repository.completeOnboarding()
 
     fun selectTab(tab: BottomNavTab) {
         _currentTab.value = tab
     }
 
-    fun openMareaExploration(marea: MareaType) {
-        _selectedMareaForDetail.value = marea
-    }
-
-    fun closeMareaExploration() {
-        _selectedMareaForDetail.value = null
-    }
-
     fun logMarea(type: MareaType, situation: String, timeOfDay: String, location: String, note: String) {
-        viewModelScope.launch {
-            repository.recordMarea(type, situation, timeOfDay, location, note)
-            closeMareaExploration()
-        }
+        repository.recordMarea(type, situation, timeOfDay, location, note)
     }
+
+    fun deleteLog(id: String) = repository.deleteLog(id)
 
     fun openActivity(activity: ActivityItem) {
         _activeActivity.value = activity
     }
 
+    /** Salir sin terminar: no cambia nada (sin penalización). */
     fun closeActiveActivity() {
         _activeActivity.value = null
     }
 
     fun completeCurrentActivity(activity: ActivityItem) {
-        viewModelScope.launch {
-            repository.completeActivity(activity.id)
-            _earnedReward.value = Pair(activity.rewardTitle, activity.rewardIcon)
-            _activeActivity.value = null
-        }
+        _earnedReward.value = repository.completeActivity(activity.id)
+        _activeActivity.value = null
     }
 
-    fun dismissRewardDialog() {
+    /** Herramientas de la pestaña Actividades (burbujas, sonidos). */
+    fun completeTool(sourceId: String) {
+        _earnedReward.value = repository.completeActivity(sourceId)
+    }
+
+    fun saveDiaryEntry(prompt: String, text: String) = repository.addDiaryEntry(prompt, text)
+
+    /** Cierra el aviso de recompensa, guardando la respuesta opcional "¿te ayudó?". */
+    fun dismissRewardDialog(feedback: ActivityFeedback? = null) {
+        val reward = _earnedReward.value
+        if (reward != null && feedback != null) {
+            repository.recordActivityFeedback(reward.completionId, feedback)
+        }
         _earnedReward.value = null
     }
 
     fun saveReflection(text: String) {
-        viewModelScope.launch {
-            repository.addReflection(text)
-            _showReflectionDialog.value = false
-        }
+        val reward = repository.addReflection(text)
+        _showReflectionDialog.value = false
+        if (reward != null) _earnedReward.value = reward
+    }
+
+    fun deleteReflection(id: String) = repository.deleteReflection(id)
+
+    fun markElementSeen(elementId: String) = repository.markElementSeen(elementId)
+
+    fun resetAllData() {
+        repository.resetAllData()
+        _activeActivity.value = null
+        _earnedReward.value = null
+        _showMenuDialog.value = false
+        _showArchivoCorrientes.value = false
+        _currentTab.value = BottomNavTab.HOME
     }
 
     fun setReflectionDialogVisible(visible: Boolean) {
@@ -132,35 +130,15 @@ class MareaViewModel(application: Application) : AndroidViewModel(application) {
         _showArchivoCorrientes.value = visible
     }
 
-    fun setSupportDialogVisible(visible: Boolean) {
-        _showSupportDialog.value = visible
-    }
+    fun changeSkyMode(skyMode: SkyMode) = repository.setIslandSkyMode(skyMode)
 
-    fun setSelfEvaluationVisible(visible: Boolean) {
-        _showSelfEvaluation.value = visible
-    }
+    fun sendAnonymousConsultation(message: String): AnonymousConsultation =
+        repository.submitAnonymousConsultation(message)
 
-    fun setAnonymousConsultationVisible(visible: Boolean) {
-        _showAnonymousConsultation.value = visible
-    }
+    fun toggleFavoriteRoute(routeId: String) = repository.toggleFavoriteRoute(routeId)
 
-    fun changeSkyMode(skyMode: SkyMode) {
-        repository.setIslandSkyMode(skyMode)
-    }
+    fun setUserName(name: String) = repository.setUserName(name)
 
-    fun sendAnonymousConsultation(message: String): AnonymousConsultation {
-        return repository.submitAnonymousConsultation(message)
-    }
-
-    fun toggleFavoriteRoute(routeId: String) {
-        repository.toggleFavoriteRoute(routeId)
-    }
-
-    fun setUserName(name: String) {
-        repository.setUserName(name)
-    }
-
-    fun evaluateQuestionnaire(questionnaireId: String, selectedOptions: Map<Int, Int>): EvaluationResult {
-        return repository.evaluateQuestionnaire(questionnaireId, selectedOptions)
-    }
+    fun evaluateQuestionnaire(questionnaireId: String, selectedOptions: Map<Int, Int>): SelfCheckResult =
+        repository.evaluateQuestionnaire(questionnaireId, selectedOptions)
 }

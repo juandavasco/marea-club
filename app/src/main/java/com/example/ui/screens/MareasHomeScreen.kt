@@ -110,7 +110,7 @@ fun MareasHomeScreen(
                         text = if (activeMarea != null) "Marea actual: ${activeMarea.title}" else "Tu rincón de calma en el océano",
                         fontFamily = NunitoFontFamily,
                         fontSize = 12.sp,
-                        color = MareaTealBar
+                        color = MareaTealText
                     )
                 }
             }
@@ -532,11 +532,11 @@ fun MareasHomeScreen(
                         )
 
                         Text(
-                            text = "${islandState.progressPercent}% para el siguiente nivel",
+                            text = if (islandState.level >= 4) "¡Isla completa!" else "${islandState.progressPercent}% para el siguiente nivel",
                             fontFamily = QuicksandFontFamily,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MareaTealBar,
+                            color = MareaTealText,
                             modifier = Modifier.padding(top = 2.dp)
                         )
                     }
@@ -638,9 +638,9 @@ fun MareasHomeScreen(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth(0.6f)
-                                    .fillMaxHeight(dayData.heightFraction)
+                                    .fillMaxHeight(if (dayData.mareaType != null) dayData.heightFraction else 0.06f)
                                     .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                                    .background(dayData.mareaType.primaryColor)
+                                    .background(dayData.mareaType?.primaryColor ?: MareaTextMuted.copy(alpha = 0.25f))
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
@@ -770,7 +770,7 @@ fun MareasHomeScreen(
                     SupportQuickAction(
                         icon = Icons.Default.Lock,
                         label = "Anónimo",
-                        sub = "Consulta segura",
+                        sub = "Demostración",
                         onClick = onOpenAnonymousConsultation,
                         modifier = Modifier.weight(1f)
                     )
@@ -792,6 +792,7 @@ private fun ActivityQuickCard(
         colors = CardDefaults.cardColors(containerColor = MareaBackground),
         modifier = Modifier
             .width(135.dp)
+            .testTag("home_activity_${activity.id}")
             .clickable(onClick = onClick)
     ) {
         Column(

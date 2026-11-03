@@ -119,10 +119,10 @@ fun BurbujaScreen(
                     onSelectActivity = onOpenActivity
                 )
                 BurbujaMode.BURBUJAS -> BubblePopTool(
-                    onCompleted = { onActivityCompleted("Burbujas de descarga") }
+                    onCompleted = { onActivityCompleted("act_burbujas") }
                 )
                 BurbujaMode.SONIDOS -> OceanSoundPlayer(
-                    onCompleted = { onActivityCompleted("Sonidos del océano") }
+                    onCompleted = { onActivityCompleted("act_sonidos") }
                 )
             }
         }
@@ -342,7 +342,8 @@ fun BubblePopTool(
                             .clickable {
                                 bubbles.remove(b)
                                 poppedCount++
-                                if (poppedCount % 3 == 0) {
+                                // Se completa una vez al reventar la primera ronda de 6 burbujas
+                                if (poppedCount == 6) {
                                     onCompleted()
                                 }
                                 if (bubbles.isEmpty()) {
@@ -429,13 +430,45 @@ fun OceanSoundPlayer(
 ) {
     var isPlaying by remember { mutableStateOf(false) }
     var selectedTrack by remember { mutableStateOf("Olas suaves de la costa") }
+    var completedThisSession by remember { mutableStateOf(false) }
+    var secondsListened by remember { mutableIntStateOf(0) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
+    // Sonidos reales (res/raw), generados con tools/generar_sonidos.py: originales, sin licencias de terceros
     val tracks = listOf(
         "Olas suaves de la costa" to "Sonido rítmico para tranquilizar la mente",
         "Brisa en la playa" to "Susurro de viento costero sereno",
         "Campanas submarinas" to "Tonos suaves y envolventes",
         "Lluvia tibia en el muelle" to "Gotas suaves sobre la madera"
     )
+    val trackRes = mapOf(
+        "Olas suaves de la costa" to R.raw.sonido_olas,
+        "Brisa en la playa" to R.raw.sonido_brisa,
+        "Campanas submarinas" to R.raw.sonido_campanas,
+        "Lluvia tibia en el muelle" to R.raw.sonido_lluvia
+    )
+
+    // Reproductor: se crea al cambiar de pista y se libera al salir de la pantalla
+    val player = remember(selectedTrack) {
+        android.media.MediaPlayer.create(context, trackRes.getValue(selectedTrack))?.apply { isLooping = true }
+    }
+    DisposableEffect(player) {
+        onDispose { runCatching { player?.release() } }
+    }
+    LaunchedEffect(player, isPlaying) {
+        if (isPlaying) runCatching { player?.start() } else runCatching { if (player?.isPlaying == true) player.pause() }
+    }
+    // Escuchar 1 minuto completa la herramienta (una vez por visita)
+    LaunchedEffect(isPlaying) {
+        while (isPlaying) {
+            kotlinx.coroutines.delay(1000)
+            secondsListened++
+            if (!completedThisSession && secondsListened >= LISTEN_SECONDS_TO_COMPLETE) {
+                completedThisSession = true
+                onCompleted()
+            }
+        }
+    }
 
     Card(
         shape = RoundedCornerShape(22.dp),
@@ -460,6 +493,14 @@ fun OceanSoundPlayer(
                 fontFamily = NunitoFontFamily,
                 fontSize = 12.sp,
                 color = MareaTextMuted
+            )
+
+            Text(
+                text = if (completedThisSession) "¡Completaste un minuto de calma!" else "Escucha 1 minuto para que aparezca algo nuevo en tu isla (${secondsListened.coerceAtMost(LISTEN_SECONDS_TO_COMPLETE)}/$LISTEN_SECONDS_TO_COMPLETE s)",
+                fontFamily = NunitoFontFamily,
+                fontSize = 11.sp,
+                color = MareaTextDark,
+                modifier = Modifier.padding(top = 4.dp)
             )
 
             Spacer(modifier = Modifier.height(14.dp))
@@ -509,10 +550,14 @@ fun OceanSoundPlayer(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
+                        .testTag("sound_track_${tracks.indexOfFirst { it.first == name }}")
                         .clickable {
-                            selectedTrack = name
-                            isPlaying = true
-                            onCompleted()
+                            if (selectedTrack == name) {
+                                isPlaying = !isPlaying
+                            } else {
+                                selectedTrack = name
+                                isPlaying = true
+                            }
                         }
                 ) {
                     Row(
@@ -539,7 +584,7 @@ fun OceanSoundPlayer(
 
                         Icon(
                             imageVector = if (isSelected && isPlaying) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
-                            contentDescription = "Reproducir",
+                            contentDescription = if (isSelected && isPlaying) "Pausar" else "Reproducir",
                             tint = MareaDeepBlue,
                             modifier = Modifier.size(28.dp)
                         )
@@ -550,15 +595,13 @@ fun OceanSoundPlayer(
             Spacer(modifier = Modifier.height(12.dp))
 
             Button(
-                onClick = {
-                    isPlaying = !isPlaying
-                    if (isPlaying) onCompleted()
-                },
+                onClick = { isPlaying = !isPlaying },
                 shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MareaTealBar),
+                colors = ButtonDefaults.buttonColors(containerColor = MareaTealText),
                 modifier = Modifier
                     .fillMaxWidth(0.75f)
                     .height(44.dp)
+                    .testTag("sound_play_pause_button")
             ) {
                 Text(
                     text = if (isPlaying) "Pausar ambiente" else "Reproducir ambiente",
@@ -571,3 +614,5 @@ fun OceanSoundPlayer(
     }
 }
 
+
+private const val LISTEN_SECONDS_TO_COMPLETE = 60

@@ -69,19 +69,30 @@ enum class MareaType(
         description = "Confusión, desconexión temporal o simplemente no tener palabras.",
         muniMessage = "Está completamente bien no saber qué sientes. El mar a veces necesita reposar en la orilla antes de mostrar sus secretos.",
         defaultSituation = "Sin motivo claro"
-    )
+    );
+
+    /** Color para TEXTO con contraste ≥ 4,5:1 sobre blanco (los rellenos claros no lo cumplen). */
+    val textColor: Color
+        get() = when (this) {
+            TRANQUILA -> MareaDeepBlue
+            NO_SE -> Color(0xFF555555)
+            else -> primaryColor
+        }
 }
 
 data class MareaLogEntry(
     val id: String,
     val type: MareaType,
-    val dayOfWeek: String,
     val timestamp: Long,
-    val situation: String,
-    val timeOfDay: String = "Hoy",
-    val location: String = "Cotidiano",
+    /** Contexto opcional: vacío si el usuario no eligió nada. */
+    val situation: String = "",
+    val timeOfDay: String = "",
+    val location: String = "",
     val note: String = ""
-)
+) {
+    /** Etiqueta de fecha legible, calculada desde la fecha real del registro. */
+    val dayOfWeek: String get() = DateLabels.dayLabel(timestamp)
+}
 
 enum class ActivityCategory(val title: String, val description: String) {
     RESPIRACION("Respiración y regulación", "Pausas conscientes y ritmo marino"),
@@ -106,19 +117,21 @@ data class ActivityItem(
 data class IslandElement(
     val id: String,
     val name: String,
-    val stage: Int,
     val category: ActivityCategory,
-    val isUnlocked: Boolean,
     val meaning: String
 )
 
 data class IslandState(
     val level: Int = 1,
     val levelName: String = "Orilla Inicial",
-    val stage: Int = 1, // 1: Descubrimiento, 2: Crecimiento, 3: Desarrollo, 4: Consolidación
+    /** Igual al nivel; se conserva para las pantallas existentes. */
+    val stage: Int = 1,
+    /** Avance hacia el siguiente nivel (0–100), derivado de los elementos desbloqueados. */
     val progressPercent: Int = 0,
     val skyMode: SkyMode = SkyMode.DIA,
-    val unlockedElementIds: Set<String> = emptySet()
+    val unlockedElementIds: Set<String> = emptySet(),
+    /** Elementos que el usuario ya abrió; los demás desbloqueados se muestran como "Nuevo". */
+    val seenElementIds: Set<String> = emptySet()
 )
 
 enum class SkyMode(val title: String, val description: String) {
@@ -130,8 +143,10 @@ enum class SkyMode(val title: String, val description: String) {
 data class WeeklyDayData(
     val dayName: String,
     val shortName: String,
-    val mareaType: MareaType,
-    val heightFraction: Float
+    /** Marea más frecuente del día (en empate, la más reciente). null = sin registros. */
+    val mareaType: MareaType?,
+    val heightFraction: Float,
+    val entries: List<MareaLogEntry> = emptyList()
 )
 
 data class ReflectionEntry(
@@ -161,8 +176,13 @@ data class PsychologicalRoute(
     val costDescription: String,
     val description: String,
     val mapQuery: String,
-    val verificationSource: String = "Secretaría de Salud de Medellín / Fuente Oficial",
-    val verificationDate: String = "Octubre 2026",
+    /** Fuente pública consultada para verificar el dato. */
+    val verificationSource: String,
+    val verificationUrl: String,
+    /** Fecha en que el equipo verificó el dato (AAAA-MM-DD). */
+    val verificationDate: String,
+    /** Solo las rutas verificadas se muestran en la app. */
+    val verified: Boolean,
     val isFavorite: Boolean = false,
     val isLocalMedellin: Boolean = true
 ) {
@@ -171,7 +191,8 @@ data class PsychologicalRoute(
 
 data class QuestionOption(
     val label: String,
-    val score: Int // 0: baja/leve, 1: moderada, 2: notable
+    /** Peso interno para ordenar sugerencias (0, 1 o 2). Nunca se muestra al usuario. */
+    val score: Int
 )
 
 data class QuestionItem(
@@ -190,20 +211,17 @@ data class QuestionnaireDefinition(
     val questions: List<QuestionItem>
 )
 
-enum class EvaluationLevel(val title: String, val badgeColor: Long) {
-    ESTABLE("Aguas Tranquilas y Estables", 0xFF0EA9CE),
-    OBSERVAR("Marea en Movimiento (Observar)", 0xFF1D95D3),
-    APOYO_RECOMENDADO("Marea Alta (Buscar Acompañamiento)", 0xFF0E4273)
-}
-
-data class EvaluationResult(
+/**
+ * Resultado de la autoevaluación preliminar NO clínica.
+ * No contiene puntaje ni nivel: solo orientación y rutas sugeridas.
+ */
+data class SelfCheckResult(
     val questionnaireId: String,
     val title: String,
-    val score: Int,
-    val level: EvaluationLevel,
-    val description: String,
-    val recommendedSteps: List<String>,
-    val suggestedRouteId: String? = null
+    val focus: com.example.domain.SelfCheckGuidance.Focus,
+    val message: String,
+    val suggestions: List<String>,
+    val suggestedRouteIds: List<String>
 )
 
 data class AnonymousConsultation(
@@ -223,41 +241,25 @@ enum class BottomNavTab(val label: String) {
     BURBUJA("Actividades")
 }
 
-enum class UserProfileType {
-    CHILD,
-    PARENT
+enum class ActivityFeedback(val label: String) {
+    AYUDO("Me ayudó"),
+    MAS_O_MENOS("Más o menos"),
+    NO_AYUDO("No me ayudó")
 }
 
-enum class AccompanimentStatus {
-    PENDING,
-    ACKNOWLEDGED
-}
-
-data class AccompanimentRequest(
+/** Registro de una actividad terminada, con la respuesta opcional "¿te ayudó?". */
+data class ActivityCompletion(
     val id: String,
+    val sourceId: String,
     val timestamp: Long,
-    val note: String,
-    val status: AccompanimentStatus = AccompanimentStatus.PENDING
+    val feedback: ActivityFeedback? = null
 )
 
-data class FamilyLinkState(
-    val isLinked: Boolean = false,
-    val linkCode: String = "MAR-482",
-    val childName: String = "Navegante",
-    val parentName: String = "Acompañante Familiar",
-    val linkedSinceTimestamp: Long = 0L,
-    val shareTidesSummary: Boolean = true,
-    val shareIslandProgress: Boolean = true,
-    val shareActivitiesSummary: Boolean = true
+/** Lo que se muestra al terminar una actividad: qué acción desbloqueó qué elemento. */
+data class RewardInfo(
+    val completionId: String,
+    val sourceTitle: String,
+    val elementName: String,
+    val icon: String,
+    val newlyUnlocked: Boolean
 )
-
-data class ParentGuideArticle(
-    val id: String,
-    val title: String,
-    val category: String,
-    val readTime: String,
-    val summary: String,
-    val fullContent: String,
-    val practicalTips: List<String>
-)
-

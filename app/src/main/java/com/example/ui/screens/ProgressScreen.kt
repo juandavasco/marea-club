@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.Waves
@@ -57,6 +58,8 @@ fun ProgressScreen(
     availableActivities: List<ActivityItem>,
     onOpenReflection: () -> Unit,
     onOpenActivity: (ActivityItem) -> Unit,
+    weekHasEnoughData: Boolean = true,
+    onDeleteReflection: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -64,14 +67,9 @@ fun ProgressScreen(
     var selectedTabFilter by remember { mutableStateOf(ProgressTabFilter.MOMENTOS) }
     var inspectedLogEntry by remember { mutableStateOf<MareaLogEntry?>(null) }
 
-    // Find the log entries corresponding to the selected day
-    val selectedDayLogs = if (selectedDayName != null) {
-        logs.filter { it.dayOfWeek.equals(selectedDayName, ignoreCase = true) }
-    } else {
-        emptyList()
-    }
-
+    // Registros reales del día seleccionado de ESTA semana (por fecha, no por nombre del día)
     val selectedDayData = weeklyOverview.firstOrNull { it.dayName.equals(selectedDayName, ignoreCase = true) }
+    val selectedDayLogs = selectedDayData?.entries ?: emptyList()
 
     Column(
         modifier = modifier
@@ -139,15 +137,14 @@ fun ProgressScreen(
                                     selectedDayName = if (isSelected) null else dayData.dayName
                                 }
                         ) {
-                            val hasEntries = logs.any { it.dayOfWeek.equals(dayData.dayName, ignoreCase = true) }
+                            val hasEntries = dayData.entries.isNotEmpty()
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth(0.72f)
-                                    .fillMaxHeight(dayData.heightFraction)
+                                    .fillMaxHeight(if (hasEntries) dayData.heightFraction else 0.05f)
                                     .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
                                     .background(
-                                        if (hasEntries) dayData.mareaType.primaryColor
-                                        else Color(0xFF75BBD0).copy(alpha = 0.45f)
+                                        dayData.mareaType?.primaryColor ?: Color(0xFF75BBD0).copy(alpha = 0.45f)
                                     )
                                     .then(
                                         if (isSelected) Modifier.border(2.dp, MareaDeepBlue, RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp))
@@ -179,6 +176,23 @@ fun ProgressScreen(
                     }
                 }
 
+                val weekCount = weeklyOverview.sumOf { it.entries.size }
+                Text(
+                    text = if (weekHasEnoughData) {
+                        "$weekCount registros esta semana (lunes a domingo). Toca una barra para ver el día."
+                    } else {
+                        "Hay pocos datos esta semana ($weekCount de 3 registros). El resumen se completa a medida que registres tus mareas; los días vacíos no cuentan como ninguna marea."
+                    },
+                    fontFamily = NunitoFontFamily,
+                    fontSize = 11.sp,
+                    color = MareaTextDark,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .testTag(if (weekHasEnoughData) "week_count_text" else "week_low_data_text")
+                )
+
                 // Interactive Day Details when a bar is selected
                 if (selectedDayData != null) {
                     val hasEntries = selectedDayLogs.isNotEmpty()
@@ -203,13 +217,13 @@ fun ProgressScreen(
                                         modifier = Modifier
                                             .size(28.dp)
                                             .clip(CircleShape)
-                                            .background(if (hasEntries) selectedDayData.mareaType.primaryColor else Color(0xFF75BBD0).copy(alpha = 0.35f)),
+                                            .background(if (hasEntries) (selectedDayData.mareaType?.primaryColor ?: Color.Transparent) else Color(0xFF75BBD0).copy(alpha = 0.35f)),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text(if (hasEntries) "🌊" else "🌱", fontSize = 14.sp)
                                     }
                                     Text(
-                                        text = if (hasEntries) "${selectedDayData.dayName}: Marea ${selectedDayData.mareaType.title}" else "${selectedDayData.dayName}: Sin registros aún",
+                                        text = if (hasEntries) "${selectedDayData.dayName}: Marea ${selectedDayData.mareaType?.title ?: ""}" else "${selectedDayData.dayName}: Sin registros aún",
                                         fontFamily = SnigletFontFamily,
                                         fontSize = 15.sp,
                                         color = MareaTextDark
@@ -227,7 +241,7 @@ fun ProgressScreen(
                             Spacer(modifier = Modifier.height(6.dp))
 
                             Text(
-                                text = if (hasEntries) selectedDayData.mareaType.description else "Aún no registras emociones este día. ¡Toca la pestaña de Mareas para registrar cómo te sientes hoy!",
+                                text = if (hasEntries) (selectedDayData.mareaType?.description ?: "") else "Aún no registras emociones este día. ¡Toca la pestaña de Mareas para registrar cómo te sientes hoy!",
                                 fontFamily = NunitoFontFamily,
                                 fontSize = 12.sp,
                                 color = MareaTextMuted
@@ -239,7 +253,7 @@ fun ProgressScreen(
                                 selectedDayLogs.forEach { log ->
                                     Surface(
                                         shape = RoundedCornerShape(12.dp),
-                                        color = selectedDayData.mareaType.backgroundColor.copy(alpha = 0.6f),
+                                        color = log.type.backgroundColor.copy(alpha = 0.6f),
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(vertical = 4.dp)
@@ -247,7 +261,7 @@ fun ProgressScreen(
                                     ) {
                                         Column(modifier = Modifier.padding(10.dp)) {
                                             Text(
-                                                text = "Situación: ${log.situation}",
+                                                text = "Marea ${log.type.title}" + if (log.situation.isNotBlank()) " · ${log.situation}" else "",
                                                 fontFamily = QuicksandFontFamily,
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 12.sp,
@@ -263,7 +277,7 @@ fun ProgressScreen(
                                                 )
                                             }
                                             Text(
-                                                text = "${log.timeOfDay} · ${log.location}",
+                                                text = listOf(log.timeOfDay, log.location).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Sin contexto (opcional)" },
                                                 fontFamily = QuicksandFontFamily,
                                                 fontSize = 10.sp,
                                                 color = MareaTextMuted,
@@ -418,11 +432,11 @@ fun ProgressScreen(
                                                         fontFamily = QuicksandFontFamily,
                                                         fontWeight = FontWeight.Bold,
                                                         fontSize = 11.sp,
-                                                        color = log.type.primaryColor
+                                                        color = log.type.textColor
                                                     )
                                                 }
                                                 Text(
-                                                    text = "Influencia: ${log.situation}",
+                                                    text = if (log.situation.isNotBlank()) "Influencia: ${log.situation}" else "Sin contexto (opcional)",
                                                     fontFamily = NunitoFontFamily,
                                                     fontSize = 11.sp,
                                                     color = MareaTextMuted
@@ -526,6 +540,19 @@ fun ProgressScreen(
                                                     fontSize = 10.sp,
                                                     color = MareaTextMuted
                                                 )
+                                                IconButton(
+                                                    onClick = { onDeleteReflection(ref.id) },
+                                                    modifier = Modifier
+                                                        .size(28.dp)
+                                                        .testTag("delete_reflection_${ref.id}")
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Delete,
+                                                        contentDescription = "Borrar esta entrada",
+                                                        tint = MareaTextMuted,
+                                                        modifier = Modifier.size(18.dp)
+                                                    )
+                                                }
                                             }
                                             Spacer(modifier = Modifier.height(4.dp))
                                             Text(
@@ -783,14 +810,14 @@ fun ProgressScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
-                            text = "Qué influyó: ${entry.situation}",
+                            text = "Qué influyó: ${entry.situation.ifBlank { "no lo indicaste" }}",
                             fontFamily = QuicksandFontFamily,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
                             color = MareaTextDark
                         )
                         Text(
-                            text = "Momento y lugar: ${entry.timeOfDay} · ${entry.location}",
+                            text = "Momento y lugar: " + listOf(entry.timeOfDay, entry.location).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "no lo indicaste" },
                             fontFamily = NunitoFontFamily,
                             fontSize = 12.sp,
                             color = MareaTextMuted

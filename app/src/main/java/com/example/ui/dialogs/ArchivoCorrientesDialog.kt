@@ -9,8 +9,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,8 +29,10 @@ import com.example.ui.theme.*
 @Composable
 fun ArchivoCorrientesDialog(
     logs: List<MareaLogEntry>,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onDeleteLog: (String) -> Unit = {}
 ) {
+    var pendingDelete by remember { mutableStateOf<MareaLogEntry?>(null) }
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
@@ -58,7 +61,7 @@ fun ArchivoCorrientesDialog(
                             color = MareaTextDark
                         )
                         Text(
-                            text = "Tus registros y memorias emocionales",
+                            text = "Tus registros. Solo están en este teléfono y puedes borrarlos.",
                             fontFamily = NunitoFontFamily,
                             fontSize = 12.sp,
                             color = MareaTextMuted
@@ -147,7 +150,7 @@ fun ArchivoCorrientesDialog(
                                         }
 
                                         Text(
-                                            text = "Motivo: ${log.situation}",
+                                            text = if (log.situation.isNotBlank()) "Motivo: ${log.situation}" else "Sin contexto (opcional)",
                                             fontFamily = NunitoFontFamily,
                                             fontSize = 12.sp,
                                             color = MareaTextDark,
@@ -164,6 +167,17 @@ fun ArchivoCorrientesDialog(
                                             )
                                         }
                                     }
+
+                                    IconButton(
+                                        onClick = { pendingDelete = log },
+                                        modifier = Modifier.testTag("delete_log_${log.id}")
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Borrar este registro",
+                                            tint = MareaTextMuted
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -171,5 +185,25 @@ fun ArchivoCorrientesDialog(
                 }
             }
         }
+    }
+
+    pendingDelete?.let { log ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("¿Borrar este registro?", fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold) },
+            text = { Text("Marea ${log.type.title} del ${log.dayOfWeek}. Se quitará también del resumen semanal. No se puede deshacer.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDeleteLog(log.id)
+                        pendingDelete = null
+                    },
+                    modifier = Modifier.testTag("confirm_delete_log")
+                ) { Text("Borrar", color = Color(0xFF9A2A10)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("Cancelar", color = MareaTextDark) }
+            }
+        )
     }
 }

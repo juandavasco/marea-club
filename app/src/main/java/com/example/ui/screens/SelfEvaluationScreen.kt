@@ -26,8 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.model.EvaluationLevel
-import com.example.model.EvaluationResult
+import com.example.model.SelfCheckResult
 import com.example.model.QuestionnaireDefinition
 import com.example.ui.theme.*
 
@@ -35,7 +34,7 @@ import com.example.ui.theme.*
 @Composable
 fun SelfEvaluationScreen(
     questionnaires: List<QuestionnaireDefinition>,
-    onEvaluate: (String, Map<Int, Int>) -> EvaluationResult,
+    onEvaluate: (String, Map<Int, Int>) -> SelfCheckResult,
     onBack: () -> Unit,
     onOpenSupportDirectory: () -> Unit,
     modifier: Modifier = Modifier
@@ -43,7 +42,7 @@ fun SelfEvaluationScreen(
     var activeQuestionnaire by remember { mutableStateOf<QuestionnaireDefinition?>(null) }
     var currentQuestionIndex by remember { mutableIntStateOf(0) }
     val selectedOptions = remember { mutableStateMapOf<Int, Int>() }
-    var currentResult by remember { mutableStateOf<EvaluationResult?>(null) }
+    var currentResult by remember { mutableStateOf<SelfCheckResult?>(null) }
 
     fun resetState() {
         activeQuestionnaire = null
@@ -79,7 +78,7 @@ fun SelfEvaluationScreen(
                 actions = {
                     if (activeQuestionnaire != null && currentResult == null) {
                         TextButton(onClick = { resetState() }) {
-                            Text("Salir", fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, color = MareaTealBar)
+                            Text("Salir", fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, color = MareaTealText)
                         }
                     }
                 },
@@ -110,7 +109,7 @@ fun SelfEvaluationScreen(
 
                 // Result display
                 currentResult != null -> {
-                    EvaluationResultView(
+                    SelfCheckResultView(
                         result = currentResult!!,
                         onRestart = { resetState() },
                         onOpenSupportDirectory = onOpenSupportDirectory
@@ -238,7 +237,7 @@ private fun QuestionnaireCatalog(
                             text = q.subtitle,
                             fontFamily = NunitoFontFamily,
                             fontSize = 12.sp,
-                            color = MareaTealBar
+                            color = MareaTealText
                         )
                         Spacer(modifier = Modifier.height(3.dp))
                         Text(
@@ -290,7 +289,7 @@ private fun QuestionFlowView(
                 .fillMaxWidth()
                 .height(8.dp)
                 .clip(CircleShape),
-            color = MareaTealBar,
+            color = MareaTealText,
             trackColor = MareaCardMedium
         )
 
@@ -305,7 +304,7 @@ private fun QuestionFlowView(
                 fontFamily = QuicksandFontFamily,
                 fontWeight = FontWeight.Bold,
                 fontSize = 12.sp,
-                color = MareaTealBar
+                color = MareaTealText
             )
             Text(
                 text = questionnaire.title,
@@ -425,9 +424,13 @@ private fun QuestionFlowView(
     }
 }
 
+/**
+ * Resultado de la autoevaluación NO clínica (decisión 4):
+ * sin puntaje, sin nivel y sin etiquetas; solo orientación y rutas de apoyo siempre visibles.
+ */
 @Composable
-private fun EvaluationResultView(
-    result: EvaluationResult,
+private fun SelfCheckResultView(
+    result: SelfCheckResult,
     onRestart: () -> Unit,
     onOpenSupportDirectory: () -> Unit
 ) {
@@ -435,19 +438,11 @@ private fun EvaluationResultView(
         modifier = Modifier
             .fillMaxSize()
             .padding(20.dp)
-            .verticalScroll(rememberScrollState()),
+            .verticalScroll(rememberScrollState())
+            .testTag("self_check_result"),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        val levelEmoji = when (result.level) {
-            EvaluationLevel.ESTABLE -> "🌱"
-            EvaluationLevel.OBSERVAR -> "🌊"
-            EvaluationLevel.APOYO_RECOMENDADO -> "🌪️"
-        }
-
-        Text(
-            text = levelEmoji,
-            fontSize = 48.sp
-        )
+        Text(text = "🌊", fontSize = 44.sp)
 
         Spacer(modifier = Modifier.height(6.dp))
 
@@ -459,25 +454,18 @@ private fun EvaluationResultView(
             textAlign = TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(4.dp))
-
-        AssistChip(
-            onClick = {},
-            label = {
-                Text(
-                    text = result.level.title,
-                    fontFamily = QuicksandFontFamily,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp,
-                    color = Color(result.level.badgeColor)
-                )
-            },
-            shape = RoundedCornerShape(12.dp)
+        Text(
+            text = "Orientación preliminar · no es un diagnóstico",
+            fontFamily = QuicksandFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 12.sp,
+            color = MareaTextMuted,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 4.dp)
         )
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Description Card
         Card(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -485,16 +473,7 @@ private fun EvaluationResultView(
         ) {
             Column(modifier = Modifier.padding(18.dp)) {
                 Text(
-                    text = "¿Qué significa esta marea?",
-                    fontFamily = SnigletFontFamily,
-                    fontSize = 15.sp,
-                    color = MareaTextDark
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = result.description,
+                    text = result.message,
                     fontFamily = NunitoFontFamily,
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
@@ -504,22 +483,22 @@ private fun EvaluationResultView(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = "Recomendaciones para acompañarte:",
+                    text = "Lo que podría ayudarte ahora:",
                     fontFamily = SnigletFontFamily,
                     fontSize = 14.sp,
-                    color = MareaTealBar
+                    color = MareaTealText
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                result.recommendedSteps.forEach { step ->
+                result.suggestions.forEach { step ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 3.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text("•", fontSize = 16.sp, color = MareaTealBar, fontWeight = FontWeight.Bold)
+                        Text("•", fontSize = 16.sp, color = MareaTealText, fontWeight = FontWeight.Bold)
                         Text(
                             text = step,
                             fontFamily = NunitoFontFamily,
@@ -534,27 +513,25 @@ private fun EvaluationResultView(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // If high tide, suggest direct support
-        if (result.level == EvaluationLevel.APOYO_RECOMENDADO) {
-            Button(
-                onClick = onOpenSupportDirectory,
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MareaDeepBlue),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp)
-                    .testTag("result_to_directory_button")
-            ) {
-                Text(
-                    text = "Ver Directorio de Atención en Medellín ➔",
-                    fontFamily = SnigletFontFamily,
-                    fontSize = 13.sp,
-                    color = Color.White
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
+        // Rutas de apoyo SIEMPRE visibles, sin importar las respuestas
+        Button(
+            onClick = onOpenSupportDirectory,
+            shape = RoundedCornerShape(16.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MareaDeepBlue),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .testTag("result_to_directory_button")
+        ) {
+            Text(
+                text = "Ver rutas de apoyo en Medellín ➔",
+                fontFamily = SnigletFontFamily,
+                fontSize = 13.sp,
+                color = Color.White
+            )
         }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedButton(
             onClick = onRestart,

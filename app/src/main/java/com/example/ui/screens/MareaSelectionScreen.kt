@@ -39,6 +39,11 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.model.ActivityItem
 import com.example.model.MareaType
+import com.example.domain.SafetyRules
+import com.example.data.MareaContent
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
 import com.example.ui.theme.*
 import kotlin.math.sin
 
@@ -50,14 +55,16 @@ fun MareaSelectionScreen(
     onSaveMarea: (MareaType, String, String, String, String) -> Unit,
     onLaunchActivity: (ActivityItem) -> Unit,
     onBack: () -> Unit,
+    onOpenSupportDirectory: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var selectedMarea by remember { mutableStateOf(currentMarea ?: MareaType.TRANQUILA) }
-    var selectedSituation by remember(selectedMarea) { mutableStateOf(selectedMarea.defaultSituation) }
-    var selectedTimeOfDay by remember { mutableStateOf("Hoy") }
-    var selectedLocation by remember { mutableStateOf("En casa") }
+    // Nada viene preseleccionado: el usuario elige su marea y, si quiere, el contexto (§4–§5).
+    var selectedMarea by remember { mutableStateOf<MareaType?>(null) }
+    var selectedSituation by remember(selectedMarea) { mutableStateOf("") }
+    var selectedTimeOfDay by remember(selectedMarea) { mutableStateOf("") }
+    var selectedLocation by remember(selectedMarea) { mutableStateOf("") }
     var customNote by remember { mutableStateOf("") }
-    var hasSaved by remember { mutableStateOf(false) }
+    var hasSaved by remember(selectedMarea) { mutableStateOf(false) }
 
     val standardSituations = listOf("Amigos", "Escuela / Tareas", "Familia", "Cansancio", "Tiempo para mí", "Cambio inesperado")
     val noSeBodyStates = listOf("Cuerpo tenso", "Con mucha energía", "Cansado / pesado", "Relajado y sereno")
@@ -65,7 +72,7 @@ fun MareaSelectionScreen(
     val locationOptions = listOf("En casa", "En el cole", "Con amigos", "En camino")
 
     val screenBg by animateColorAsState(
-        targetValue = selectedMarea.backgroundColor,
+        targetValue = selectedMarea?.backgroundColor ?: MareaBackground,
         animationSpec = tween(500),
         label = "tide_screen_bg"
     )
@@ -114,7 +121,7 @@ fun MareaSelectionScreen(
         ) {
             // Animated subtle wave ripples in background
             SubtleOceanCanvas(
-                tide = selectedMarea,
+                tide = selectedMarea ?: MareaType.TRANQUILA,
                 modifier = Modifier.fillMaxSize()
             )
 
@@ -141,7 +148,7 @@ fun MareaSelectionScreen(
                             modifier = Modifier
                                 .size(46.dp)
                                 .clip(CircleShape)
-                                .background(selectedMarea.primaryColor.copy(alpha = 0.15f)),
+                                .background((selectedMarea?.primaryColor ?: MareaTurquoise).copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Image(
@@ -193,16 +200,30 @@ fun MareaSelectionScreen(
                     OceanicTideCard(
                         tide = tide,
                         isSelected = selectedMarea == tide,
-                        onClick = {
-                            selectedMarea = tide
-                            hasSaved = false
-                        },
+                        onClick = { selectedMarea = tide },
                         modifier = Modifier.padding(vertical = 5.dp)
                     )
                 }
 
                 Spacer(modifier = Modifier.height(18.dp))
 
+                val tide = selectedMarea
+                if (tide == null) {
+                    Text(
+                        text = "Elige una marea para continuar. Si no sabes qué sientes, «No sé qué siento» también es válido.",
+                        fontFamily = NunitoFontFamily,
+                        fontSize = 13.sp,
+                        color = MareaTextMuted,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("marea_choose_hint")
+                    )
+                } else {
+                if (SafetyRules.showsSupportFor(tide.name)) {
+                    TideSupportCard(tide = tide, onOpenSupportDirectory = onOpenSupportDirectory)
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
                 // Empathy Reflection Workspace for the Selected Tide
                 Card(
                     shape = RoundedCornerShape(24.dp),
@@ -224,7 +245,7 @@ fun MareaSelectionScreen(
                                 modifier = Modifier
                                     .size(38.dp)
                                     .clip(CircleShape)
-                                    .background(selectedMarea.primaryColor),
+                                    .background(tide.primaryColor),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Icon(
@@ -237,17 +258,17 @@ fun MareaSelectionScreen(
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "Marea ${selectedMarea.title}",
+                                    text = "Marea ${tide.title}",
                                     fontFamily = SnigletFontFamily,
                                     fontSize = 18.sp,
                                     color = MareaTextDark
                                 )
                                 Text(
-                                    text = selectedMarea.subtitle,
+                                    text = tide.subtitle,
                                     fontFamily = QuicksandFontFamily,
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 12.sp,
-                                    color = selectedMarea.primaryColor
+                                    color = tide.textColor
                                 )
                             }
                         }
@@ -257,11 +278,11 @@ fun MareaSelectionScreen(
                         // Muni compassionate message container
                         Surface(
                             shape = RoundedCornerShape(16.dp),
-                            color = selectedMarea.backgroundColor.copy(alpha = 0.7f),
+                            color = tide.backgroundColor.copy(alpha = 0.7f),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
-                                text = selectedMarea.muniMessage,
+                                text = tide.muniMessage,
                                 fontFamily = NunitoFontFamily,
                                 fontSize = 13.sp,
                                 lineHeight = 18.sp,
@@ -273,9 +294,9 @@ fun MareaSelectionScreen(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         // Context reflection chips
-                        if (selectedMarea == MareaType.NO_SE) {
+                        if (tide == MareaType.NO_SE) {
                             Text(
-                                text = "¿Cómo se siente tu cuerpo en este momento?",
+                                text = "¿Cómo se siente tu cuerpo? (opcional)",
                                 fontFamily = SnigletFontFamily,
                                 fontSize = 14.sp,
                                 color = MareaTextDark,
@@ -292,10 +313,10 @@ fun MareaSelectionScreen(
                                     row.forEach { opt ->
                                         val isSel = selectedSituation == opt
                                         OutlinedButton(
-                                            onClick = { selectedSituation = opt },
+                                            onClick = { selectedSituation = if (isSel) "" else opt },
                                             shape = RoundedCornerShape(14.dp),
                                             colors = ButtonDefaults.outlinedButtonColors(
-                                                containerColor = if (isSel) selectedMarea.primaryColor else Color(0xFFF1F6F9),
+                                                containerColor = if (isSel) tide.primaryColor else Color(0xFFF1F6F9),
                                                 contentColor = if (isSel) Color.White else MareaTextDark
                                             ),
                                             border = null,
@@ -311,7 +332,7 @@ fun MareaSelectionScreen(
                             }
                         } else {
                             Text(
-                                text = "¿Qué crees que influyó en tu marea?",
+                                text = "¿Qué crees que influyó? (opcional)",
                                 fontFamily = SnigletFontFamily,
                                 fontSize = 14.sp,
                                 color = MareaTextDark,
@@ -328,10 +349,10 @@ fun MareaSelectionScreen(
                                     row.forEach { sit ->
                                         val isSel = selectedSituation == sit
                                         OutlinedButton(
-                                            onClick = { selectedSituation = sit },
+                                            onClick = { selectedSituation = if (isSel) "" else sit },
                                             shape = RoundedCornerShape(14.dp),
                                             colors = ButtonDefaults.outlinedButtonColors(
-                                                containerColor = if (isSel) selectedMarea.primaryColor else Color(0xFFF1F6F9),
+                                                containerColor = if (isSel) tide.primaryColor else Color(0xFFF1F6F9),
                                                 contentColor = if (isSel) Color.White else MareaTextDark
                                             ),
                                             border = null,
@@ -349,7 +370,7 @@ fun MareaSelectionScreen(
                             Spacer(modifier = Modifier.height(10.dp))
 
                             Text(
-                                text = "¿En qué momento y lugar ocurrió?",
+                                text = "¿Cuándo y dónde? (opcional)",
                                 fontFamily = SnigletFontFamily,
                                 fontSize = 13.sp,
                                 color = MareaTextDark,
@@ -369,8 +390,8 @@ fun MareaSelectionScreen(
                                         modifier = Modifier
                                             .weight(1f)
                                             .clip(RoundedCornerShape(12.dp))
-                                            .background(if (isSel) selectedMarea.secondaryColor else Color(0xFFF1F6F9))
-                                            .clickable { selectedTimeOfDay = t }
+                                            .background(if (isSel) tide.secondaryColor else Color(0xFFF1F6F9))
+                                            .clickable { selectedTimeOfDay = if (isSel) "" else t }
                                             .padding(vertical = 8.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
@@ -397,8 +418,8 @@ fun MareaSelectionScreen(
                                         modifier = Modifier
                                             .weight(1f)
                                             .clip(RoundedCornerShape(12.dp))
-                                            .background(if (isSel) selectedMarea.secondaryColor else Color(0xFFF1F6F9))
-                                            .clickable { selectedLocation = loc }
+                                            .background(if (isSel) tide.secondaryColor else Color(0xFFF1F6F9))
+                                            .clickable { selectedLocation = if (isSel) "" else loc }
                                             .padding(vertical = 8.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
@@ -432,7 +453,7 @@ fun MareaSelectionScreen(
                                 .testTag("marea_selection_note_input"),
                             shape = RoundedCornerShape(16.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = selectedMarea.primaryColor,
+                                focusedBorderColor = tide.primaryColor,
                                 unfocusedBorderColor = Color(0xFFD4E6EE),
                                 focusedContainerColor = Color(0xFFF9FBFC),
                                 unfocusedContainerColor = Color(0xFFF9FBFC)
@@ -444,11 +465,16 @@ fun MareaSelectionScreen(
                         // Action buttons
                         Button(
                             onClick = {
-                                onSaveMarea(selectedMarea, selectedSituation, selectedTimeOfDay, selectedLocation, customNote)
+                                onSaveMarea(tide, selectedSituation, selectedTimeOfDay, selectedLocation, customNote)
                                 hasSaved = true
                             },
+                            enabled = !hasSaved,
                             shape = RoundedCornerShape(20.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = selectedMarea.primaryColor),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = tide.primaryColor,
+                                disabledContainerColor = tide.primaryColor.copy(alpha = 0.85f),
+                                disabledContentColor = Color.White
+                            ),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(50.dp)
@@ -461,14 +487,14 @@ fun MareaSelectionScreen(
                                 if (hasSaved) {
                                     Icon(Icons.Default.Check, contentDescription = null, tint = Color.White)
                                     Text(
-                                        text = "¡Marea guardada (+10% isla)!",
+                                        text = "Marea guardada en tu registro",
                                         fontFamily = SnigletFontFamily,
                                         fontSize = 15.sp,
                                         color = Color.White
                                     )
                                 } else {
                                     Text(
-                                        text = "Guardar en mi rincón (+10% isla) ➔",
+                                        text = "Guardar en mi registro ➔",
                                         fontFamily = SnigletFontFamily,
                                         fontSize = 15.sp,
                                         color = Color.White
@@ -478,16 +504,19 @@ fun MareaSelectionScreen(
                         }
 
                         // Direct recommended activity
-                        val topRecommendation = availableActivities.firstOrNull { it.recommendedFor.contains(selectedMarea) }
+                        val topRecommendation = availableActivities.firstOrNull { it.recommendedFor.contains(tide) }
                         if (topRecommendation != null) {
                             Spacer(modifier = Modifier.height(10.dp))
                             OutlinedButton(
                                 onClick = {
-                                    onSaveMarea(selectedMarea, selectedSituation, selectedTimeOfDay, selectedLocation, customNote)
+                                    if (!hasSaved) {
+                                        onSaveMarea(tide, selectedSituation, selectedTimeOfDay, selectedLocation, customNote)
+                                        hasSaved = true
+                                    }
                                     onLaunchActivity(topRecommendation)
                                 },
                                 shape = RoundedCornerShape(20.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.5.dp, selectedMarea.primaryColor),
+                                border = androidx.compose.foundation.BorderStroke(1.5.dp, tide.primaryColor),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(44.dp)
@@ -503,6 +532,8 @@ fun MareaSelectionScreen(
                             }
                         }
                     }
+                }
+
                 }
 
                 Spacer(modifier = Modifier.height(30.dp))
@@ -581,13 +612,13 @@ private fun OceanicTideCard(
                         text = "Marea ${tide.title}",
                         fontFamily = SnigletFontFamily,
                         fontSize = 17.sp,
-                        color = if (isSelected) tide.primaryColor else MareaTextDark
+                        color = if (isSelected) tide.textColor else MareaTextDark
                     )
 
                     if (isSelected) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = tide.primaryColor,
+                            color = tide.textColor,
                             modifier = Modifier.padding(start = 4.dp)
                         ) {
                             Text(
@@ -607,7 +638,7 @@ private fun OceanicTideCard(
                     fontFamily = QuicksandFontFamily,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 12.sp,
-                    color = tide.primaryColor
+                    color = tide.textColor
                 )
 
                 Text(
@@ -656,5 +687,70 @@ private fun SubtleOceanCanvas(
         path.close()
 
         drawPath(path, waveColor)
+    }
+}
+
+
+/**
+ * Rutas de apoyo visibles al elegir marea Alta o Tormenta (Documento Técnico §5).
+ */
+@Composable
+private fun TideSupportCard(tide: MareaType, onOpenSupportDirectory: () -> Unit) {
+    val context = LocalContext.current
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = androidx.compose.foundation.BorderStroke(2.dp, MareaDeepBlue),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("tide_support_card")
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "No tienes que pasar esto en soledad",
+                fontFamily = SnigletFontFamily,
+                fontSize = 16.sp,
+                color = MareaTextDark
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Busca a un adulto de confianza (alguien de tu familia, un docente o el orientador/a) y cuéntale cómo te sientes. También puedes llamar gratis a cualquier hora.",
+                fontFamily = NunitoFontFamily,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                color = MareaTextDark
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Button(
+                onClick = {
+                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${MareaContent.URGENT_PHONE}"))
+                    runCatching { context.startActivity(intent) }
+                },
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MareaDeepBlue),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("tide_support_call_106")
+            ) {
+                Text("Llamar a la Línea 106", fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, color = Color.White)
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            OutlinedButton(
+                onClick = onOpenSupportDirectory,
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("tide_support_open_directory")
+            ) {
+                Text("Ver todas las rutas de apoyo", fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, color = MareaDeepBlue)
+            }
+            Text(
+                text = "Si estás en peligro ahora mismo, llama al 123.",
+                fontFamily = NunitoFontFamily,
+                fontSize = 12.sp,
+                color = MareaTextMuted,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
     }
 }

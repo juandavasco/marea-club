@@ -9,33 +9,38 @@ val MareaTurquoise = Color(0xFF0EA9CE)     // Azul Turquesa
 val MareaWhite = Color(0xFFFFFFFF)         // Blanco
 
 val MareaTealBar = Color(0xFF0087A2)
+// Turquesa oscuro para TEXTO: 5,2:1 sobre el fondo (WCAG AA). #0087A2 solo para fondos y barras.
+val MareaTealText = Color(0xFF006D83)
 val MareaTealDark = Color(0xFF006D83)
 
-// 8 Emotional Blue Shades (2 per Tide state, as specified)
-// 1. Tranquila (azules claros, luminosos y suaves)
-val TideTranquilaPrimary = Color(0xFF62C2D4)
-val TideTranquilaSecondary = Color(0xFF8DE2EF)
+// 8 tonos de marea (2 por estado), medidos en el mockup del equipo "¿Cómo te sientes hoy?"
+// (docs/referencias/mockup-como-te-sientes.png). Primary = relleno, Secondary = aro.
+// 1. Tranquila
+val TideTranquilaPrimary = Color(0xFF72C6D6)
+val TideTranquilaSecondary = Color(0xFFBDE8EE)
 val TideTranquilaBg = Color(0xFFE8F6F8)
 
-// 2. Movida (azules medios, enérgicos)
-val TideMovidaPrimary = Color(0xFF2B8BB9)
-val TideMovidaSecondary = Color(0xFF1D95D3)
+// 2. Movida
+val TideMovidaPrimary = Color(0xFF24749D)
+val TideMovidaSecondary = Color(0xFF389DBB)
 val TideMovidaBg = Color(0xFFE3F1F7)
 
-// 3. Alta (azules más intensos y profundos)
-val TideAltaPrimary = Color(0xFF3B6B99)
-val TideAltaSecondary = Color(0xFF1B5282)
+// 3. Alta
+val TideAltaPrimary = Color(0xFF123F66)
+val TideAltaSecondary = Color(0xFF185A83)
 val TideAltaBg = Color(0xFFDEEAF3)
 
-// 4. Tormenta (azules oscuros y contrastados)
-val TideTormentaPrimary = Color(0xFF1B3459)
-val TideTormentaSecondary = Color(0xFF0E4273)
+// 4. Tormenta
+val TideTormentaPrimary = Color(0xFF081D33)
+val TideTormentaSecondary = Color(0xFF0D304F)
 val TideTormentaBg = Color(0xFFD7E2ED)
 
-// 5. No sé qué siento (azules grisáceos neutros de pausa)
-val TideNoSePrimary = Color(0xFF8E9BA4)
-val TideNoSeSecondary = Color(0xFF5C7280)
+// 5. No sé qué siento (grises del mockup)
+val TideNoSePrimary = Color(0xFF8A8A8A)
+val TideNoSeSecondary = Color(0xFFB4B4B4)
 val TideNoSeBg = Color(0xFFEBEFF2)
+// Relleno exacto del mockup para "No sé" (#D9D9D9); se usa en ilustraciones, no en texto.
+val TideNoSeFill = Color(0xFFD9D9D9)
 
 // Surfaces & Backgrounds
 val MareaBackground = Color(0xFFE7F0F2)

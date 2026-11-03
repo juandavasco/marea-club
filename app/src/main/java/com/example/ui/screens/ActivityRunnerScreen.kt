@@ -43,6 +43,7 @@ fun ActivityRunnerScreen(
     activity: ActivityItem,
     onClose: () -> Unit,
     onComplete: () -> Unit,
+    onSaveDiary: (prompt: String, text: String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -89,7 +90,11 @@ fun ActivityRunnerScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
+
+        ActivityGuideCard(activityId = activity.id)
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         // Activity Interaction Body
         Box(
@@ -100,7 +105,10 @@ fun ActivityRunnerScreen(
         ) {
             when (activity.id) {
                 "act_respiracion" -> InteractiveOceanBreathing(onComplete = onComplete)
-                "act_diario" -> InteractiveSeaDiary(onComplete = onComplete)
+                "act_diario" -> InteractiveSeaDiary(onSave = { prompt, text ->
+                    onSaveDiary(prompt, text)
+                    onComplete()
+                })
                 "act_emociones" -> InteractiveEmotionCompass(onComplete = onComplete)
                 "act_autoestima" -> InteractiveStrengthConstellation(onComplete = onComplete)
                 "act_conchas" -> InteractiveShellPearlGame(onComplete = onComplete)
@@ -220,7 +228,7 @@ private fun InteractiveOceanBreathing(onComplete: () -> Unit) {
 
 // 2. Interactive Sea Diary
 @Composable
-private fun InteractiveSeaDiary(onComplete: () -> Unit) {
+private fun InteractiveSeaDiary(onSave: (prompt: String, text: String) -> Unit) {
     var diaryText by remember { mutableStateOf("") }
     val prompts = listOf(
         "¿Qué momento de hoy te hizo sentir paz o alegría?",
@@ -264,7 +272,7 @@ private fun InteractiveSeaDiary(onComplete: () -> Unit) {
                 TextButton(
                     onClick = { currentPromptIndex = (currentPromptIndex + 1) % prompts.size }
                 ) {
-                    Text(text = "Cambiar pregunta ↻", fontFamily = QuicksandFontFamily, fontSize = 12.sp, color = MareaTealBar)
+                    Text(text = "Cambiar pregunta ↻", fontFamily = QuicksandFontFamily, fontSize = 12.sp, color = MareaTealText)
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -274,7 +282,7 @@ private fun InteractiveSeaDiary(onComplete: () -> Unit) {
                     onValueChange = { diaryText = it },
                     placeholder = {
                         Text(
-                            "Escribe aquí con tranquilidad. Nadie leerá esto más que tú...",
+                            "Escribe aquí con tranquilidad. Se guarda cifrado solo en tu teléfono y puedes borrarlo.",
                             fontSize = 13.sp,
                             color = MareaTextMuted
                         )
@@ -295,7 +303,7 @@ private fun InteractiveSeaDiary(onComplete: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = onComplete,
+                onClick = { onSave(prompts[currentPromptIndex], diaryText) },
                 enabled = diaryText.isNotBlank(),
                 shape = RoundedCornerShape(20.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MareaTealBar),
@@ -305,7 +313,7 @@ private fun InteractiveSeaDiary(onComplete: () -> Unit) {
                     .testTag("complete_diary_button")
             ) {
                 Text(
-                    text = "Guardar y desbloquear recompensa ➔",
+                    text = "Guardar en mi diario ➔",
                     fontFamily = SnigletFontFamily,
                     fontSize = 14.sp,
                     color = Color.White
@@ -797,6 +805,68 @@ private fun InteractiveFreeDrawingCanvas(onComplete: () -> Unit) {
                         )
                     }
                 }
+            }
+        }
+    }
+}
+
+
+/** Propósito, pasos y alternativa de la actividad (Documento Técnico §6). */
+@Composable
+private fun ActivityGuideCard(activityId: String) {
+    val guide = com.example.data.MareaContent.activityGuides[activityId] ?: return
+    var expanded by remember { mutableStateOf(false) }
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("activity_guide_card")
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Text(
+                text = guide.purpose,
+                fontFamily = QuicksandFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                color = MareaTextDark
+            )
+            if (expanded) {
+                guide.steps.forEachIndexed { i, step ->
+                    Text(
+                        text = "${i + 1}. $step",
+                        fontFamily = NunitoFontFamily,
+                        fontSize = 12.sp,
+                        color = MareaTextDark,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
+                Text(
+                    text = "Alternativa: ${guide.alternative}",
+                    fontFamily = NunitoFontFamily,
+                    fontSize = 12.sp,
+                    color = MareaTextMuted,
+                    modifier = Modifier.padding(top = 6.dp)
+                )
+                Text(
+                    text = "Puedes salir cuando quieras con la X; no pierdes nada.",
+                    fontFamily = NunitoFontFamily,
+                    fontSize = 12.sp,
+                    color = MareaTextMuted,
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+            TextButton(
+                onClick = { expanded = !expanded },
+                contentPadding = PaddingValues(0.dp),
+                modifier = Modifier.testTag("activity_guide_toggle")
+            ) {
+                Text(
+                    text = if (expanded) "Ocultar pasos" else "Ver pasos y alternativas",
+                    fontFamily = QuicksandFontFamily,
+                    fontSize = 12.sp,
+                    color = MareaTealText
+                )
             }
         }
     }

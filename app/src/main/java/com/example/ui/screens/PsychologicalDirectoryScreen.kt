@@ -221,7 +221,7 @@ fun PsychologicalDirectoryScreen(
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(RouteCategory.values()) { cat ->
+                        items(RouteCategory.values().filter { c -> c == RouteCategory.TODOS || routes.any { it.category == c } }) { cat ->
                             val isSel = selectedCategory == cat
                             FilterChip(
                                 selected = isSel,
@@ -367,7 +367,7 @@ private fun LineaAmigaHeroCard(context: Context) {
                         text = "Atención psicológica telefónica gratuita 24/7",
                         fontFamily = NunitoFontFamily,
                         fontSize = 12.sp,
-                        color = MareaTealBar
+                        color = MareaTealText
                     )
                 }
             }
@@ -458,7 +458,7 @@ private fun PsychologicalRouteCard(
                         fontFamily = QuicksandFontFamily,
                         fontWeight = FontWeight.Bold,
                         fontSize = 11.sp,
-                        color = MareaTealBar
+                        color = MareaTealText
                     )
                 }
 
@@ -491,24 +491,11 @@ private fun PsychologicalRouteCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                AssistChip(
-                    onClick = {},
-                    label = { Text(route.costDescription, fontSize = 11.sp, fontFamily = QuicksandFontFamily) },
-                    leadingIcon = { Text("🏷️", fontSize = 11.sp) },
-                    shape = RoundedCornerShape(10.dp)
-                )
-
-                AssistChip(
-                    onClick = {},
-                    label = {
-                        Text(
-                            if (route.requiresAppointment) "Requiere cita previa" else "Sin cita previa",
-                            fontSize = 11.sp,
-                            fontFamily = QuicksandFontFamily
-                        )
-                    },
-                    leadingIcon = { Text(if (route.requiresAppointment) "📅" else "🚪", fontSize = 11.sp) },
-                    shape = RoundedCornerShape(10.dp)
+                // Etiquetas informativas: NO son botones (§17), por eso no son clicables
+                InfoTag(icon = "🏷️", text = route.costDescription)
+                InfoTag(
+                    icon = if (route.requiresAppointment) "📅" else "🚪",
+                    text = if (route.requiresAppointment) "Requiere cita previa" else "Sin cita previa"
                 )
             }
 
@@ -597,7 +584,7 @@ private fun PsychologicalRouteCard(
 
             // Verification footer
             Text(
-                text = "✓ Verificado: ${route.verificationDate} • Fuente: ${route.verificationSource}",
+                text = "✓ Verificado el ${route.verificationDate} · Fuente: ${route.verificationSource}",
                 fontFamily = NunitoFontFamily,
                 fontSize = 10.sp,
                 color = MareaTextMuted.copy(alpha = 0.8f)
@@ -640,5 +627,24 @@ private fun openMapLocation(context: Context, query: String, placeName: String) 
         val webIntent = Intent(Intent.ACTION_VIEW, webUri)
         webIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(webIntent)
+    }
+}
+
+
+@Composable
+private fun InfoTag(icon: String, text: String) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = MareaBackground,
+        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD0E3EA))
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(icon, fontSize = 11.sp)
+            Text(text, fontSize = 11.sp, fontFamily = QuicksandFontFamily, color = MareaTextDark)
+        }
     }
 }
