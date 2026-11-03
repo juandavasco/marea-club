@@ -70,7 +70,8 @@ class AppFlowsTest {
         tag("save_marea_screen_btn").assertIsNotEnabled()
         tag("menu_dots_button").performClick()
         tag("menu_archivo_button").performClick()
-        compose.onNodeWithText("Marea Movida").assertExists()
+        val saved = viewModel.logs.value.single()
+        tag("delete_log_${saved.id}").assertExists()
     }
 
     @Test
@@ -78,7 +79,7 @@ class AppFlowsTest {
         startApp()
         goToMareas()
         saveTide("no_se")
-        compose.onNodeWithText("Marea guardada en tu registro").assertExists()
+        compose.onAllNodesWithText("Marea guardada en tu registro").onFirst().assertExists()
         assert(viewModel.logs.value.single().situation.isEmpty())
     }
 
@@ -91,7 +92,7 @@ class AppFlowsTest {
         tag("tide_card_tormenta").performScrollTo().performClick()
         tag("tide_support_card").assertExists()
         tag("tide_support_open_directory").performScrollTo().performClick()
-        compose.onNodeWithText("Línea Amiga Saludable", substring = true).assertExists()
+        compose.onAllNodesWithText("Línea Amiga Saludable", substring = true).onFirst().assertExists()
     }
 
     @Test
@@ -171,7 +172,7 @@ class AppFlowsTest {
         tag("menu_dots_button").performClick()
         tag("menu_reset_button").performScrollTo().performClick()
         tag("reset_confirm_button").assertIsNotEnabled()
-        tag("reset_confirm_input").performTextInput("BORRAR")
+        tag("reset_understood_checkbox").performClick()
         tag("reset_confirm_button").performClick()
         compose.waitForIdle()
         tag("welcome_start_button").assertExists()

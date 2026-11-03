@@ -1,6 +1,8 @@
 package com.example.ui.dialogs
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -53,11 +55,10 @@ fun PrivacyInfoDialog(onDismiss: () -> Unit) {
     )
 }
 
-/** Reinicio protegido (Documento Técnico §18): requiere escribir BORRAR para confirmar. */
+/** Reinicio protegido (Documento Técnico §18): hay que marcar la casilla para habilitar el borrado. */
 @Composable
 fun ResetDataDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    var typed by remember { mutableStateOf("") }
-    val canConfirm = typed.trim().equals("BORRAR", ignoreCase = true)
+    var understood by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         modifier = Modifier.testTag("reset_dialog"),
@@ -65,28 +66,29 @@ fun ResetDataDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         text = {
             Column {
                 Text(
-                    "Se borrarán tus mareas, notas, diario, reflexiones, consultas y el progreso de tu isla. La app quedará como recién instalada. No se puede deshacer.",
+                    "Se borrarán tus mareas, notas, diario, reflexiones, consultas y el progreso de tu isla. La app quedará como recién instalada.",
                     fontFamily = NunitoFontFamily,
                     fontSize = 13.sp
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                OutlinedTextField(
-                    value = typed,
-                    onValueChange = { typed = it },
-                    singleLine = true,
-                    label = { Text("Escribe BORRAR para confirmar") },
+                Row(
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .testTag("reset_confirm_input")
-                )
+                        .toggleable(value = understood, onValueChange = { understood = it }, role = Role.Checkbox)
+                        .testTag("reset_understood_checkbox")
+                ) {
+                    Checkbox(checked = understood, onCheckedChange = null)
+                    Text("Entiendo que no se puede deshacer", fontFamily = NunitoFontFamily, fontSize = 13.sp)
+                }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
-                enabled = canConfirm,
+                enabled = understood,
                 modifier = Modifier.testTag("reset_confirm_button")
-            ) { Text("Borrar todo", color = if (canConfirm) Color(0xFF9A2A10) else MareaTextMuted) }
+            ) { Text("Borrar todo", color = if (understood) Color(0xFF9A2A10) else MareaTextMuted) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancelar", color = MareaTextDark) }

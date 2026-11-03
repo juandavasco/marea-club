@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -118,7 +119,7 @@ fun MenuDotsDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 MenuItemRow(
-                    icon = Icons.Default.HelpOutline,
+                    icon = Icons.AutoMirrored.Filled.HelpOutline,
                     title = "Introducción a Marea Club",
                     subtitle = "Ver los pilares y la guía de Muni",
                     tag = "menu_welcome_button",
