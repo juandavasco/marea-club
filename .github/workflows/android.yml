@@ -22,11 +22,19 @@ jobs:
       - name: Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Keystore de depuración (solo para firmar el APK de prueba)
+      - name: Clave de firma fija (para que cada versión se instale encima de la anterior)
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
         run: |
-          keytool -genkeypair -v -keystore debug.keystore -storepass android \
-            -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
-            -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
+            echo "$DEBUG_KEYSTORE_BASE64" | base64 --decode > debug.keystore
+            echo "Usando la clave fija guardada en el secreto DEBUG_KEYSTORE_BASE64"
+          else
+            echo "::warning::Falta el secreto DEBUG_KEYSTORE_BASE64. Se usa una clave temporal: este APK NO se podrá instalar encima de otras versiones."
+            keytool -genkeypair -v -keystore debug.keystore -storepass android \
+              -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 \
+              -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
 
       - name: Lint, pruebas y APK
         run: |
@@ -37,7 +45,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: marea-club-debug-apk
+          name: marea-club-v${{ github.run_number }}-apk
           path: app/build/outputs/apk/debug/*.apk
 
       - name: Subir informes de pruebas y lint

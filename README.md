@@ -10,8 +10,11 @@ Marea Club ayuda a reconocer cómo te sientes con cuatro "mareas" (tranquila, mo
 
 **Opción 1: descargar el APK (sin instalar nada)**
 1. Entra a la pestaña **Actions** de este repositorio y abre la última ejecución en verde.
-2. Descarga el artefacto `marea-club-debug-apk` y descomprímelo.
+2. Descarga el artefacto `marea-club-vN-apk` (N = número de versión) y descomprímelo.
 3. Pásalo a un teléfono Android e instálalo (permite "orígenes desconocidos").
+4. **Actualizar:** instala el APK nuevo encima del anterior; los datos de prueba se conservan.
+   Esto funciona porque todas las versiones se firman con la misma clave (secreto `DEBUG_KEYSTORE_BASE64`
+   del repositorio). La versión instalada aparece al final del menú (⋯).
 
 **Opción 2: Android Studio (gratis)**
 1. Clona el repositorio y ábrelo en Android Studio.

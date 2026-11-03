@@ -177,6 +177,15 @@ fun MenuDotsDialog(
                             lineHeight = 15.sp,
                             modifier = Modifier.padding(top = 2.dp)
                         )
+                        Text(
+                            text = "Versión ${com.example.BuildConfig.VERSION_NAME}",
+                            fontFamily = NunitoFontFamily,
+                            fontSize = 11.sp,
+                            color = MareaTextMuted,
+                            modifier = Modifier
+                                .padding(top = 6.dp)
+                                .testTag("app_version_text")
+                        )
                     }
                 }
             }

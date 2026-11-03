@@ -16,8 +16,11 @@ android {
     applicationId = "com.aistudio.mareaclub.mpkvrz"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    // Cada compilación de GitHub Actions sube el número de versión, así Android acepta instalarla
+    // encima de la anterior (conservando los datos). En Android Studio local queda en 1.
+    val runNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+    versionCode = runNumber
+    versionName = "1.$runNumber"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
