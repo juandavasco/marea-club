@@ -89,4 +89,21 @@ object WeeklySummary {
         val tied = counts.filterValues { it == max }.keys
         return entries.sortedByDescending(timestampOf).first { keyOf(it) in tied }.let(keyOf)
     }
+
+    /** Lo único que se comparte de la semana si el niño lo activa: conteos por marea y días con registro. */
+    data class Shareable(val weekStart: String, val counts: Map<String, Int>, val daysWithRecord: Int)
+
+    fun <T> shareable(
+        items: List<T>,
+        nowMillis: Long,
+        timeZone: TimeZone = TimeZone.getDefault(),
+        typeName: (T) -> String,
+        timestampOf: (T) -> Long
+    ): Shareable {
+        val week = build(items, nowMillis, timeZone, timestampOf)
+        val cal = Calendar.getInstance(timeZone).apply { timeInMillis = week.startMillis }
+        val start = "%04d-%02d-%02d".format(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH))
+        val counts = week.days.flatMap { it.entries }.groupingBy(typeName).eachCount()
+        return Shareable(start, counts, week.days.count { !it.isEmpty })
+    }
 }

@@ -359,10 +359,12 @@ test('la semana compartida no admite notas, contexto ni conteos inventados', asy
   await assertFails(setDoc(ref, week({ daysWithRecord: 9 })));
 });
 
-test('solo el niño escribe su semana y puede dejar de compartirla', async () => {
+test('solo el niño escribe su semana; él o el adulto (al desvincular) pueden borrarla', async () => {
   await seedFamily({ childUid: CHILD });
   await assertFails(setDoc(doc(google(OWNER), 'families', FID, 'shared', 'week'), week()));
   await setDoc(doc(anon(CHILD), 'families', FID, 'shared', 'week'), week());
-  await assertFails(deleteDoc(doc(google(OWNER), 'families', FID, 'shared', 'week')));
+  await assertFails(deleteDoc(doc(google(STRANGER), 'families', FID, 'shared', 'week')));
   await assertSucceeds(deleteDoc(doc(anon(CHILD), 'families', FID, 'shared', 'week')));
+  await setDoc(doc(anon(CHILD), 'families', FID, 'shared', 'week'), week());
+  await assertSucceeds(deleteDoc(doc(google(OWNER), 'families', FID, 'shared', 'week')));
 });

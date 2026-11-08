@@ -33,7 +33,7 @@ class FamilyViewModel @JvmOverloads constructor(
     private val store = FamilyStore(application)
     private var adultName: String = "Adulto"
     private val backend: FamilyBackend by lazy { backendFactory() }
-    private var subscription: Subscription? = null
+    private var subscriptions: List<Subscription> = emptyList()
 
     private val _role = MutableStateFlow(store.role)
     val role: StateFlow<DeviceRole?> = _role.asStateFlow()
@@ -55,6 +55,16 @@ class FamilyViewModel @JvmOverloads constructor(
 
     private val _activeCode = MutableStateFlow<ActiveCode?>(null)
     val activeCode: StateFlow<ActiveCode?> = _activeCode.asStateFlow()
+
+    /** Niño: sus pedidos de Mis salvavidas. Adulto: los que le enviaron. */
+    private val _requests = MutableStateFlow<List<CompanionRequest>>(emptyList())
+    val requests: StateFlow<List<CompanionRequest>> = _requests.asStateFlow()
+
+    private val _sharedWeek = MutableStateFlow<SharedWeek?>(null)
+    val sharedWeek: StateFlow<SharedWeek?> = _sharedWeek.asStateFlow()
+
+    private val _shareWeek = MutableStateFlow(store.shareWeek)
+    val shareWeek: StateFlow<Boolean> = _shareWeek.asStateFlow()
 
     private val _hasPin = MutableStateFlow(store.hasPin)
     val hasPin: StateFlow<Boolean> = _hasPin.asStateFlow()
@@ -161,6 +171,8 @@ class FamilyViewModel @JvmOverloads constructor(
 
     fun childLeave() = work {
         _familyId.value?.let { backend.childLeaves(it) }
+        store.shareWeek = false
+        _shareWeek.value = false
         stopObserving()
         store.familyId = null
         _familyId.value = null
@@ -220,6 +232,7 @@ class FamilyViewModel @JvmOverloads constructor(
         _hasPin.value = false
         _unlocked.value = true
         _needsPinSetup.value = false
+        _shareWeek.value = false
     }
 
     private fun redeem(rawCode: String, role: LinkRole, displayName: String, onLinked: () -> Unit = {}) = work {
@@ -248,12 +261,54 @@ class FamilyViewModel @JvmOverloads constructor(
 
     private fun startObserving(familyId: String) {
         stopObserving()
-        subscription = runCatching { backend.observeFamily(familyId) { _family.value = it } }.getOrNull()
+        val asChild = _role.value != DeviceRole.ADULT
+        subscriptions = listOfNotNull(
+            runCatching { backend.observeFamily(familyId) { _family.value = it } }.getOrNull(),
+            runCatching { backend.observeRequests(familyId, asChild) { _requests.value = it } }.getOrNull(),
+            runCatching { backend.observeSharedWeek(familyId) { _sharedWeek.value = it } }.getOrNull()
+        )
     }
 
     private fun stopObserving() {
-        subscription?.cancel()
-        subscription = null
+        subscriptions.forEach { it.cancel() }
+        subscriptions = emptyList()
+        _requests.value = emptyList()
+        _sharedWeek.value = null
+    }
+
+    // ------------------------------------------------------------------ Mis salvavidas
+
+    /** El niño envía un pedido; si no hay conexión se avisa y no queda nada en cola. */
+    fun sendRequest(toUid: String, reason: CompanionReason) = work {
+        val fid = _familyId.value ?: return@work
+        backend.sendCompanionRequest(fid, toUid, reason)
+    }
+
+    fun childSetRequestStatus(requestId: String, status: RequestStatus) = work {
+        _familyId.value?.let { backend.childUpdateRequest(it, requestId, status) }
+    }
+
+    fun respond(requestId: String, status: RequestStatus) = work {
+        _familyId.value?.let { backend.respondToRequest(it, requestId, status) }
+    }
+
+    // ------------------------------------------------------------------ Compartir mi semana
+
+    /** El niño activa o desactiva compartir su semana. Al desactivar se borra de la nube. */
+    fun setShareWeek(enabled: Boolean, week: SharedWeek?) = work {
+        val fid = _familyId.value ?: return@work
+        if (enabled && week != null) backend.shareWeek(fid, week) else backend.stopSharingWeek(fid)
+        store.shareWeek = enabled
+        _shareWeek.value = enabled
+    }
+
+    /** Actualiza lo compartido cuando cambian los registros (silencioso si no hay conexión). */
+    fun syncWeek(week: SharedWeek) {
+        val fid = _familyId.value ?: return
+        if (!_shareWeek.value || !isChildLinked(_family.value)) return
+        val current = _sharedWeek.value
+        if (current != null && current.weekStart == week.weekStart && current.counts == week.counts && current.daysWithRecord == week.daysWithRecord) return
+        viewModelScope.launch { runCatching { backend.shareWeek(fid, week) } }
     }
 
     private fun work(block: suspend () -> Unit) {

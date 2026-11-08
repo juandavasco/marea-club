@@ -8,7 +8,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -28,7 +33,10 @@ import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.NoCredentialException
 import com.example.R
+import com.example.data.family.CompanionRequest
 import com.example.data.family.FamilyInfo
+import com.example.data.family.RequestStatus
+import com.example.data.family.SharedWeek
 import com.example.data.family.LinkRole
 import com.example.domain.LinkCode
 import com.example.domain.PinRules
@@ -185,7 +193,190 @@ fun AdultApp(family: FamilyViewModel, modifier: Modifier = Modifier) {
     when {
         !signedIn -> AdultSignInScreen(family, busy, message, modifier)
         familyId == null -> AdultSetupScreen(family, busy, message, modifier)
-        else -> AdultFamilyScreen(family, info, activeCode, busy, message, modifier)
+        else -> AdultHome(family, info, activeCode, busy, message, modifier)
+    }
+}
+
+private enum class AdultTab(val label: String, val tag: String) {
+    RESUMEN("Resumen", "adult_tab_resumen"),
+    FAMILIA("Familia", "adult_tab_familia"),
+    CONFIG("Configuración", "adult_tab_config")
+}
+
+/** Perfil del adulto con sus pestañas. Bitácora y Conexión familiar llegan en la entrega 5. */
+@Composable
+private fun AdultHome(
+    family: FamilyViewModel,
+    info: FamilyInfo?,
+    activeCode: ActiveCode?,
+    busy: Boolean,
+    message: String?,
+    modifier: Modifier
+) {
+    var tab by rememberSaveable { mutableStateOf(AdultTab.RESUMEN) }
+    val requests by family.requests.collectAsState()
+    val week by family.sharedWeek.collectAsState()
+    val pending = requests.count { it.status == RequestStatus.ENVIADA }
+    Column(modifier.fillMaxSize().background(MareaBackground)) {
+        Box(Modifier.weight(1f)) {
+            when (tab) {
+                AdultTab.RESUMEN -> AdultSummaryScreen(family, info, requests, week, busy, message)
+                AdultTab.FAMILIA -> AdultFamilyScreen(family, info, activeCode, busy, message, Modifier)
+                AdultTab.CONFIG -> AdultSettingsScreen(family)
+            }
+        }
+        NavigationBar(containerColor = MareaTealText) {
+            AdultTab.entries.forEach { t ->
+                NavigationBarItem(
+                    selected = tab == t,
+                    onClick = { tab = t },
+                    icon = {
+                        BadgedBox(badge = { if (t == AdultTab.RESUMEN && pending > 0) Badge { Text("$pending") } }) {
+                            Icon(
+                                when (t) {
+                                    AdultTab.RESUMEN -> Icons.Default.Home
+                                    AdultTab.FAMILIA -> Icons.Default.People
+                                    AdultTab.CONFIG -> Icons.Default.Settings
+                                },
+                                contentDescription = null
+                            )
+                        }
+                    },
+                    label = { Text(t.label, color = Color.White) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MareaTealText,
+                        unselectedIconColor = Color.White,
+                        indicatorColor = Color.White
+                    ),
+                    modifier = Modifier.testTag(t.tag)
+                )
+            }
+        }
+    }
+}
+
+/** Resumen: pedidos de Mis salvavidas dirigidos a este adulto y la semana, solo si el niño la comparte. */
+@Composable
+private fun AdultSummaryScreen(
+    family: FamilyViewModel,
+    info: FamilyInfo?,
+    requests: List<CompanionRequest>,
+    week: SharedWeek?,
+    busy: Boolean,
+    message: String?
+) {
+    val childName = info?.childName?.ifBlank { null } ?: "Su hijo o hija"
+    val myName = info?.adultNames?.get(family.myUid) ?: ""
+    val open = requests.filter { it.status.isOpen }
+    val past = requests.filterNot { it.status.isOpen }.take(5)
+    ScreenColumn {
+        MareaHeader(title = if (myName.isNotBlank()) "Hola, $myName" else "Resumen", subtitle = "Lo que $childName decidió compartir con usted.")
+
+        MareaSectionTitle("Mis salvavidas", supporting = "Pedidos de compañía que le envió a usted.")
+        if (info?.hasChild != true) {
+            BodyText("Aún no hay un perfil vinculado. Vincúlelo desde la pestaña Familia.", color = MareaTextMuted)
+        } else if (open.isEmpty()) {
+            BodyText("No hay pedidos abiertos.", Modifier.testTag("adult_no_requests"), color = MareaTextMuted)
+        }
+        open.forEach { r -> AdultRequestCard(r, childName, busy, onRespond = { status -> family.respond(r.id, status) }) }
+        ErrorText(message)
+        MareaNotice(
+            text = "En esta versión los pedidos se ven al abrir Marea Club: aún no llegan notificaciones al teléfono. Abra la app con frecuencia.",
+            modifier = Modifier.padding(top = MareaSpace.m),
+            tag = "adult_no_push_notice"
+        )
+
+        MareaSectionTitle("Su semana", supporting = "Solo aparece si $childName activa «Compartir mi semana». Es su decisión.")
+        if (week == null) {
+            BodyText("$childName no está compartiendo su semana.", Modifier.testTag("adult_week_not_shared"), color = MareaTextMuted)
+        } else {
+            SharedWeekCard(week)
+        }
+
+        if (past.isNotEmpty()) {
+            MareaSectionTitle("Pedidos anteriores")
+            past.forEach { r ->
+                BodyText("${dateTime(r.createdAtMillis)} · ${r.reason.label} · ${statusLabel(r.status)}", Modifier.padding(bottom = MareaSpace.xs), color = MareaTextMuted)
+            }
+        }
+    }
+}
+
+private fun dateTime(ms: Long): String = SimpleDateFormat("EEE d MMM, h:mm a", Locale.forLanguageTag("es-CO")).format(Date(ms))
+
+private fun statusLabel(s: RequestStatus): String = when (s) {
+    RequestStatus.ENVIADA -> "sin ver"
+    RequestStatus.VISTA -> "visto"
+    RequestStatus.VOY -> "respondió: voy"
+    RequestStatus.NO_PUEDO -> "respondió: no puedo"
+    RequestStatus.CANCELADA -> "cancelado"
+    RequestStatus.CERRADA -> "ya estaba acompañado"
+}
+
+@Composable
+private fun AdultRequestCard(r: CompanionRequest, childName: String, busy: Boolean, onRespond: (RequestStatus) -> Unit) {
+    MareaCard(modifier = Modifier.padding(bottom = MareaSpace.m).testTag("adult_request_${r.id}"), background = Color(0xFFFFF6E5)) {
+        Text("$childName necesita acompañamiento", fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = MareaTextDark)
+        BodyText("«${r.reason.label}» · ${dateTime(r.createdAtMillis)}", Modifier.padding(top = MareaSpace.xs))
+        BodyText(
+            "No hace falta preguntar qué pasó de inmediato: acompañe primero. Estado: ${statusLabel(r.status)}.",
+            Modifier.padding(top = MareaSpace.xs, bottom = MareaSpace.m), color = MareaTextMuted
+        )
+        MareaPrimaryButton("Voy para allá", onClick = { onRespond(RequestStatus.VOY) }, enabled = !busy, tag = "adult_respond_voy")
+        Spacer(Modifier.height(MareaSpace.s))
+        if (r.status == RequestStatus.ENVIADA) {
+            MareaSecondaryButton("Lo vi", onClick = { onRespond(RequestStatus.VISTA) }, enabled = !busy, tag = "adult_respond_vista")
+        }
+        MareaTextButton("No puedo ahora", onClick = { onRespond(RequestStatus.NO_PUEDO) }, tag = "adult_respond_no_puedo")
+    }
+}
+
+@Composable
+private fun SharedWeekCard(week: SharedWeek) {
+    val order = listOf("TRANQUILA" to "Tranquila", "MOVIDA" to "Movida", "ALTA" to "Alta", "TORMENTA" to "Tormenta", "NO_SE" to "No sé")
+    MareaCard(modifier = Modifier.testTag("adult_shared_week")) {
+        Text("Semana que empezó el ${week.weekStart.split("-").let { "${it[2].toInt()}/${it[1].toInt()}" }}", fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MareaTextDark)
+        BodyText("Registró su marea ${week.daysWithRecord} de 7 días.", Modifier.padding(vertical = MareaSpace.xs))
+        order.forEach { (key, label) ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                BodyText(label)
+                BodyText("${week.counts[key] ?: 0}")
+            }
+        }
+        BodyText(
+            "Son conteos, no un diagnóstico. Ninguna marea es buena o mala; si quiere conversar, pregunte con curiosidad y sin presionar.",
+            Modifier.padding(top = MareaSpace.s), color = MareaTextMuted
+        )
+    }
+}
+
+@Composable
+private fun AdultSettingsScreen(family: FamilyViewModel) {
+    var confirmLeaveDevice by remember { mutableStateOf(false) }
+    ScreenColumn {
+        MareaHeader(title = "Configuración", subtitle = "Cuenta, privacidad y este teléfono.")
+        WhatAdultsSeeCard(forChild = false)
+        Spacer(Modifier.height(MareaSpace.l))
+        MareaSecondaryButton("Cerrar sesión", onClick = { family.signOutAdult() }, tag = "adult_sign_out")
+        Spacer(Modifier.height(MareaSpace.s))
+        MareaTextButton("Usar este teléfono como el de un niño o niña", onClick = { confirmLeaveDevice = true }, tag = "adult_switch_role")
+        BodyText(
+            "Marea Club acompaña, pero no diagnostica ni reemplaza a un profesional. Si le preocupa la seguridad de su hijo o hija, llame a la Línea 106 o al 123.",
+            Modifier.padding(top = MareaSpace.l), color = MareaTextMuted
+        )
+    }
+    if (confirmLeaveDevice) {
+        ConfirmDialog(
+            title = "¿Cambiar de perfil en este teléfono?",
+            text = "Se cerrará su sesión aquí. Su familia y el vínculo siguen guardados: puede volver a entrar con Google cuando quiera.",
+            confirm = "Cambiar",
+            onConfirm = {
+                confirmLeaveDevice = false
+                family.signOutAdult()
+                family.setRole(null)
+            },
+            onDismiss = { confirmLeaveDevice = false }
+        )
     }
 }
 
@@ -308,11 +499,6 @@ private fun AdultFamilyScreen(
             BodyText("Solo quien creó el espacio puede invitar a otro adulto.", color = MareaTextMuted)
         }
 
-        MareaSectionTitle("Privacidad")
-        WhatAdultsSeeCard(forChild = false)
-
-        Spacer(Modifier.height(MareaSpace.l))
-        MareaTextButton("Cerrar sesión", onClick = { family.signOutAdult() }, tag = "adult_sign_out")
     }
 
     if (confirmUnlink) {
@@ -384,6 +570,8 @@ private fun ConfirmDialog(title: String, text: String, confirm: String, onConfir
 fun ChildFamilyScreen(
     family: FamilyViewModel,
     userName: String,
+    /** Lo que se compartiría de esta semana (calculado de los registros locales). */
+    currentWeek: SharedWeek,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -391,6 +579,7 @@ fun ChildFamilyScreen(
     val busy by family.busy.collectAsState()
     val message by family.message.collectAsState()
     val hasPin by family.hasPin.collectAsState()
+    val sharing by family.shareWeek.collectAsState()
     var code by remember { mutableStateOf("") }
     var confirmLeave by remember { mutableStateOf(false) }
     val linked = family.isChildLinked(info)
@@ -406,6 +595,30 @@ fun ChildFamilyScreen(
                 Text("Vinculado con ${info?.adultNameList()?.joinToString(" y ").orEmpty()}", fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = MareaTextDark)
                 BodyText("Desde «Mis salvavidas» puedes pedirle compañía cuando lo necesites.", Modifier.padding(top = MareaSpace.xs))
             }
+            Spacer(Modifier.height(MareaSpace.m))
+            MareaCard(modifier = Modifier.testTag("child_share_week_card")) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Compartir mi semana", fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = MareaTextDark)
+                        BodyText("Solo cuántas mareas de cada tipo registraste y en cuántos días. Nunca tus notas, tu diario ni por qué te sentiste así.")
+                    }
+                    Switch(
+                        checked = sharing,
+                        onCheckedChange = { family.setShareWeek(it, currentWeek) },
+                        enabled = !busy,
+                        modifier = Modifier.testTag("child_share_week_switch")
+                    )
+                }
+                if (sharing) {
+                    BodyText(
+                        "Ahora se ve: " + currentWeek.counts.entries.joinToString(", ") { "${it.key.lowercase().replace("_", " ")} ${it.value}" }
+                            .ifBlank { "ningún registro esta semana" } + " · ${currentWeek.daysWithRecord} de 7 días.",
+                        Modifier.padding(top = MareaSpace.s).testTag("child_share_week_preview"),
+                        color = MareaTextMuted
+                    )
+                }
+            }
+            ErrorText(message)
             Spacer(Modifier.height(MareaSpace.m))
             WhatAdultsSeeCard(forChild = true)
             if (!hasPin) {

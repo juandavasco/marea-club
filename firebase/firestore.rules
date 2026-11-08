@@ -133,7 +133,8 @@ service cloud.firestore {
 
       // -------------------------------------------------------------- Compartir mi semana
       // Solo si el niño lo activa: cuántos registros hubo de cada marea y en cuántos días.
-      // Sin notas, sin contexto, sin fechas exactas. El niño puede dejar de compartir (borrarlo).
+      // Sin notas, sin contexto, sin fechas exactas. El niño puede dejar de compartir (borrarlo);
+      // el adulto también puede borrarlo al desvincular el perfil.
       match /shared/{docId} {
         allow read: if isAdultOf(fid) || isChildOf(fid);
         allow create, update: if isChildOf(fid) && docId == 'week'
@@ -147,7 +148,7 @@ service cloud.firestore {
           && request.resource.data.daysWithRecord is int
           && request.resource.data.daysWithRecord >= 0 && request.resource.data.daysWithRecord <= 7
           && request.resource.data.updatedAt == request.time;
-        allow delete: if isChildOf(fid);
+        allow delete: if isChildOf(fid) || isAdultOf(fid);
       }
     }
 

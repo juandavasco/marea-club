@@ -20,6 +20,10 @@ class FamilyStore(context: Context) {
         get() = prefs.getString(KEY_FAMILY, null)
         set(value) = prefs.edit().apply { if (value == null) remove(KEY_FAMILY) else putString(KEY_FAMILY, value) }.apply()
 
+    var shareWeek: Boolean
+        get() = prefs.getBoolean(KEY_SHARE_WEEK, false)
+        set(value) = prefs.edit().putBoolean(KEY_SHARE_WEEK, value).apply()
+
     val isOnboarded: Boolean get() = prefs.getBoolean("is_onboarded", false)
 
     val pinHash: String? get() = prefs.getString(KEY_PIN_HASH, null)
@@ -50,6 +54,7 @@ class FamilyStore(context: Context) {
     companion object {
         private const val KEY_ROLE = "device_role"
         private const val KEY_FAMILY = "family_id"
+        private const val KEY_SHARE_WEEK = "share_week"
         private const val KEY_PIN_HASH = "pin_hash"
         private const val KEY_PIN_SALT = "pin_salt"
         private const val KEY_PIN_FAILED = "pin_failed_attempts"

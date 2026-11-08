@@ -60,16 +60,31 @@ class AppFlowsTest {
         click("role_child")
     }
 
+    /** El teléfono del adulto, simulado fuera de la interfaz. */
+    private val adultPhone = FakeFamilyBackend(server, "Juan")
+    private var adultFamilyId = ""
+
     /** Un adulto (en otro "teléfono") crea la familia y genera un código. Devuelve el código. */
-    private fun adultCreatesCode(): String {
-        val adult = FakeFamilyBackend(server, "Juan")
-        return kotlinx.coroutines.runBlocking {
-            adult.signInWithGoogle("juan")
-            val fid = adult.createFamily("Juan", "Navegante")
-            val code = LinkCode.generate()
-            adult.publishLinkCode(fid, LinkRole.CHILD, LinkCode.hash(code))
-            code
-        }
+    private fun adultCreatesCode(): String = kotlinx.coroutines.runBlocking {
+        adultPhone.signInWithGoogle("juan")
+        adultFamilyId = adultPhone.createFamily("Juan", "Navegante")
+        val code = LinkCode.generate()
+        adultPhone.publishLinkCode(adultFamilyId, LinkRole.CHILD, LinkCode.hash(code))
+        code
+    }
+
+    /** Recorre en la interfaz: vincularse con el código y crear el PIN 2580. */
+    private fun linkChildThroughUi() {
+        val code = adultCreatesCode()
+        startApp()
+        tag("menu_dots_button").performClick()
+        click("menu_family_button")
+        tag("child_code_input").performTextInput(code)
+        click("child_link_button")
+        tag("pin_new").performTextInput("2580")
+        tag("pin_confirm").performTextInput("2580")
+        click("pin_save")
+        click("header_back_button")
     }
 
     private fun goToMareas() {
@@ -236,7 +251,7 @@ class AppFlowsTest {
     fun `mis salvavidas - sin adulto vinculado el boton no simula un envio`() {
         startApp()
         click("home_salvavidas")
-        tag("salvavidas_request_button").assertIsNotEnabled()
+        tag("salvavidas_request_button").assertDoesNotExist()
         tag("salvavidas_not_linked").assertExists()
         click("salvavidas_all_lines")
         compose.onAllNodesWithText("Línea Amiga Saludable", substring = true).onFirst().assertExists()
@@ -306,8 +321,86 @@ class AppFlowsTest {
     fun `sin adulto vinculado, Mis salvavidas lleva a vincularse`() {
         startApp()
         click("home_salvavidas")
-        tag("salvavidas_request_button").assertIsNotEnabled()
+        tag("salvavidas_request_button").assertDoesNotExist()
         click("salvavidas_open_family")
         tag("child_code_input").assertExists()
+    }
+
+    // ------------------------------------------------------------------ entrega 4
+
+    @Test
+    fun `mis salvavidas - el nino vinculado pide compania y ve la respuesta real del adulto`() {
+        linkChildThroughUi()
+        click("home_salvavidas")
+        tag("salvavidas_request_button").assertIsNotEnabled()
+        click("salvavidas_reason_compania")
+        click("salvavidas_request_button")
+        tag("salvavidas_status_enviada").assertExists()
+        val req = server.requests.getValue(adultFamilyId).single()
+        assert(req.reason.wire == "compania" && req.toUid == adultPhone.currentUid)
+        // El adulto responde desde su teléfono
+        kotlinx.coroutines.runBlocking { adultPhone.respondToRequest(adultFamilyId, req.id, com.example.data.family.RequestStatus.VOY) }
+        compose.waitForIdle()
+        tag("salvavidas_status_voy").assertExists()
+        click("salvavidas_close")
+        tag("salvavidas_new_request").assertExists()
+    }
+
+    @Test
+    fun `mis salvavidas - sin conexion se avisa y no se envia nada`() {
+        linkChildThroughUi()
+        server.online = false
+        click("home_salvavidas")
+        click("salvavidas_reason_hablar")
+        click("salvavidas_request_button")
+        tag("salvavidas_message").assertExists()
+        assert(server.requests[adultFamilyId].isNullOrEmpty())
+    }
+
+    @Test
+    fun `compartir mi semana - apagado por defecto, el adulto solo ve conteos al activarlo`() {
+        linkChildThroughUi()
+        goToMareas()
+        saveTide("alta")
+        assert(server.weeks.isEmpty())
+        tag("menu_dots_button").performClick()
+        click("menu_family_button")
+        click("child_share_week_switch")
+        compose.waitForIdle()
+        val week = server.weeks.getValue(adultFamilyId)
+        assert(week.counts == mapOf("ALTA" to 1))
+        click("child_share_week_switch")
+        compose.waitForIdle()
+        assert(server.weeks.isEmpty())
+    }
+
+    @Test
+    fun `adulto - crea la familia, genera un codigo y responde un pedido desde Resumen`() {
+        click("welcome_start_button")
+        click("role_adult")
+        family.onGoogleIdToken("juan")
+        compose.waitForIdle()
+        tag("adult_child_alias").performTextInput("Sofi")
+        click("adult_create_family")
+        tag("adult_tab_familia").performClick()
+        click("adult_generate_child_code")
+        tag("active_code_text").assertExists()
+        val code = family.activeCode.value!!.code
+        // El niño se vincula desde su teléfono y pide compañía
+        val childPhone = FakeFamilyBackend(server)
+        val fid = family.familyId.value!!
+        kotlinx.coroutines.runBlocking {
+            childPhone.signInAnonymously()
+            childPhone.redeemLinkCode(LinkCode.hash(code), LinkRole.CHILD, "Sofi")
+            childPhone.sendCompanionRequest(fid, family.myUid!!, com.example.data.family.CompanionReason.HABLAR)
+        }
+        compose.waitForIdle()
+        tag("adult_child_linked").assertExists()
+        tag("adult_tab_resumen").performClick()
+        compose.onNodeWithText("Sofi necesita acompañamiento").assertExists()
+        click("adult_respond_voy")
+        assert(server.requests.getValue(fid).single().status == com.example.data.family.RequestStatus.VOY)
+        tag("adult_week_not_shared").assertExists()
+        tag("adult_no_push_notice").assertExists()
     }
 }

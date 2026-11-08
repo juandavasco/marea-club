@@ -147,7 +147,12 @@ class FirebaseFamilyBackend : FamilyBackend {
     }
 
     override suspend fun unlinkChild(familyId: String) {
-        network { db.collection(FAMILIES).document(familyId).update("childUid", null).await() }
+        network {
+            db.batch()
+                .update(db.collection(FAMILIES).document(familyId), "childUid", null)
+                .delete(weekDoc(familyId))
+                .commit().await()
+        }
     }
 
     override suspend fun removeSecondAdult(familyId: String, ownerUid: String) {
@@ -155,7 +160,110 @@ class FirebaseFamilyBackend : FamilyBackend {
     }
 
     override suspend fun childLeaves(familyId: String) {
-        network { db.collection(FAMILIES).document(familyId).update("childUid", null).await() }
+        network {
+            // Primero se borra lo compartido (después ya no tendría permiso).
+            weekDoc(familyId).delete().await()
+            db.collection(FAMILIES).document(familyId).update("childUid", null).await()
+        }
+    }
+
+    // ------------------------------------------------------------------ Mis salvavidas
+
+    private fun requests(familyId: String) = db.collection(FAMILIES).document(familyId).collection("requests")
+
+    override suspend fun sendCompanionRequest(familyId: String, toUid: String, reason: CompanionReason): String = network {
+        val uid = currentUid ?: throw BackendUnavailable()
+        // Comprobar conexión primero: sin ella, Firestore guardaría el pedido en cola y lo enviaría
+        // más tarde, cuando el niño ya no lo espera. Mejor avisar que no se envió.
+        db.collection(FAMILIES).document(familyId).get(Source.SERVER).await()
+        val ref = requests(familyId).document()
+        ref.set(
+            mapOf(
+                "childUid" to uid,
+                "toUid" to toUid,
+                "reason" to reason.wire,
+                "createdAt" to FieldValue.serverTimestamp(),
+                "status" to RequestStatus.ENVIADA.wire,
+                "respondedAt" to null
+            )
+        ).await()
+        ref.id
+    }
+
+    override fun observeRequests(familyId: String, asChild: Boolean, onChange: (List<CompanionRequest>) -> Unit): Subscription {
+        val uid = currentUid ?: return Subscription { }
+        // La consulta debe coincidir con las reglas: el adulto solo puede pedir los suyos.
+        val query = requests(familyId).whereEqualTo(if (asChild) "childUid" else "toUid", uid)
+        val registration = query.addSnapshotListener { snap, error ->
+            if (error != null || snap == null) return@addSnapshotListener
+            onChange(
+                snap.documents.map { d ->
+                    CompanionRequest(
+                        id = d.id,
+                        childUid = d.getString("childUid") ?: "",
+                        toUid = d.getString("toUid") ?: "",
+                        reason = CompanionReason.fromWire(d.getString("reason")),
+                        // Mientras el servidor no confirma la hora, se usa la del teléfono
+                        createdAtMillis = d.getTimestamp("createdAt")?.toDate()?.time ?: System.currentTimeMillis(),
+                        status = RequestStatus.fromWire(d.getString("status")),
+                        respondedAtMillis = d.getTimestamp("respondedAt")?.toDate()?.time
+                    )
+                }.sortedByDescending { it.createdAtMillis }
+            )
+        }
+        return Subscription { registration.remove() }
+    }
+
+    override suspend fun respondToRequest(familyId: String, requestId: String, status: RequestStatus) {
+        network {
+            requests(familyId).document(requestId)
+                .update(mapOf("status" to status.wire, "respondedAt" to FieldValue.serverTimestamp())).await()
+        }
+    }
+
+    override suspend fun childUpdateRequest(familyId: String, requestId: String, status: RequestStatus) {
+        network { requests(familyId).document(requestId).update("status", status.wire).await() }
+    }
+
+    // ------------------------------------------------------------------ Compartir mi semana
+
+    private fun weekDoc(familyId: String) = db.collection(FAMILIES).document(familyId).collection("shared").document("week")
+
+    override suspend fun shareWeek(familyId: String, week: SharedWeek) {
+        network {
+            weekDoc(familyId).set(
+                mapOf(
+                    "weekStart" to week.weekStart,
+                    "counts" to week.counts,
+                    "daysWithRecord" to week.daysWithRecord,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+        }
+    }
+
+    override suspend fun stopSharingWeek(familyId: String) {
+        network { weekDoc(familyId).delete().await() }
+    }
+
+    override fun observeSharedWeek(familyId: String, onChange: (SharedWeek?) -> Unit): Subscription {
+        val registration = weekDoc(familyId).addSnapshotListener { snap, error ->
+            if (error != null || snap == null || !snap.exists()) {
+                onChange(null)
+                return@addSnapshotListener
+            }
+            @Suppress("UNCHECKED_CAST")
+            val counts = (snap.get("counts") as? Map<String, Number>).orEmpty().mapValues { it.value.toInt() }
+            onChange(
+                SharedWeek(
+                    weekStart = snap.getString("weekStart") ?: "",
+                    counts = counts,
+                    daysWithRecord = (snap.getLong("daysWithRecord") ?: 0).toInt(),
+                    updatedAtMillis = snap.getTimestamp("updatedAt")?.toDate()?.time ?: 0
+                )
+            )
+        }
+        return Subscription { registration.remove() }
     }
 
     /** Las escrituras de Firestore esperan conexión indefinidamente: se corta a los 20 s. */

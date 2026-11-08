@@ -42,6 +42,7 @@ class ScreenshotTest {
 
     private lateinit var viewModel: MareaViewModel
     private lateinit var family: FamilyViewModel
+    private val server = FakeServer()
     private val outDir = File("build/screenshots").apply { mkdirs() }
 
     @Before
@@ -49,7 +50,7 @@ class ScreenshotTest {
         val app = ApplicationProvider.getApplicationContext<Application>()
         app.getSharedPreferences(MareaRepository.PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
         viewModel = MareaViewModel(app)
-        family = FamilyViewModel(app, backendFactory = { FakeFamilyBackend(FakeServer()) })
+        family = FamilyViewModel(app, backendFactory = { FakeFamilyBackend(server) })
         compose.setContent { MareaClubTheme { MareaClubApp(viewModel = viewModel, family = family) } }
     }
 
@@ -78,5 +79,22 @@ class ScreenshotTest {
         enter()
         shot("02-inicio")
         ScreenshotRoutes.capture(this::tag, this::shot, viewModel)
+    }
+
+    @Test
+    fun capturar_perfil_adulto() {
+        tag("welcome_start_button").performScrollTo().performClick()
+        compose.waitForIdle()
+        tag("role_adult").performClick()
+        shot("20-adulto-inicio-sesion")
+        family.onGoogleIdToken("juan")
+        shot("21-adulto-crear-familia")
+        tag("adult_create_family").performScrollTo().performClick()
+        shot("22-adulto-resumen")
+        tag("adult_tab_familia").performClick()
+        tag("adult_generate_child_code").performScrollTo().performClick()
+        shot("23-adulto-codigo")
+        tag("adult_tab_config").performClick()
+        shot("24-adulto-configuracion")
     }
 }

@@ -78,4 +78,19 @@ class FamilyRulesTest {
         assertEquals(120_000L, PinRules.lockoutMillis(7))
         assertEquals(15 * 60_000L, PinRules.lockoutMillis(50))
     }
+
+    // ---------------------------------------------------------------- semana compartida
+
+    @Test
+    fun `la semana compartida solo tiene conteos de esta semana y dias con registro`() {
+        val tz = java.util.TimeZone.getTimeZone("America/Bogota")
+        fun at(d: Int, h: Int) = java.util.Calendar.getInstance(tz).apply { clear(); set(2026, 10, d, h, 0) }.timeInMillis
+        data class R(val type: String, val t: Long)
+        // El domingo 1 de noviembre pertenece a la semana anterior: no se comparte.
+        val items = listOf(R("ALTA", at(3, 9)), R("ALTA", at(3, 18)), R("TRANQUILA", at(5, 8)), R("TORMENTA", at(1, 8)))
+        val s = WeeklySummary.shareable(items, at(5, 20), tz, { it.type }, { it.t })
+        assertEquals("2026-11-02", s.weekStart)
+        assertEquals(mapOf("ALTA" to 2, "TRANQUILA" to 1), s.counts)
+        assertEquals(2, s.daysWithRecord)
+    }
 }

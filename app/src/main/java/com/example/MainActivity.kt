@@ -17,6 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.*
 import com.example.data.family.DeviceRole
+import com.example.data.family.SharedWeek
+import com.example.domain.WeeklySummary
 import com.example.ui.FamilyViewModel
 import com.example.ui.MareaViewModel
 import com.example.ui.components.MareaBottomBar
@@ -61,6 +63,9 @@ fun MareaClubApp(viewModel: MareaViewModel, family: FamilyViewModel) {
     val unlocked by family.unlocked.collectAsStateWithLifecycle()
     val needsPinSetup by family.needsPinSetup.collectAsStateWithLifecycle()
     val childLinked = family.isChildLinked(familyInfo)
+    val requests by family.requests.collectAsStateWithLifecycle()
+    val familyBusy by family.busy.collectAsStateWithLifecycle()
+    val familyMessage by family.message.collectAsStateWithLifecycle()
     val safe = Modifier.windowInsetsPadding(WindowInsets.safeDrawing)
     var forceShowWelcome by remember { mutableStateOf(false) }
     var activeSubScreen by remember { mutableStateOf<SubScreen?>(null) }
@@ -90,6 +95,13 @@ fun MareaClubApp(viewModel: MareaViewModel, family: FamilyViewModel) {
     val showArchivoCorrientes by viewModel.showArchivoCorrientes.collectAsStateWithLifecycle()
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
+
+    // Compartir mi semana: solo conteos, y solo si el niño lo activó (FamilyViewModel lo verifica).
+    val currentWeek = remember(logs) {
+        WeeklySummary.shareable(logs, System.currentTimeMillis(), typeName = { it.type.name }, timestampOf = { it.timestamp })
+            .let { SharedWeek(it.weekStart, it.counts, it.daysWithRecord, 0) }
+    }
+    LaunchedEffect(currentWeek, childLinked) { family.syncWeek(currentWeek) }
 
     // Sugerencia de inicio: la primera actividad aún no explorada (o la primera si ya exploró todas).
     val explored = completions.map { it.sourceId }.toSet()
@@ -177,13 +189,13 @@ fun MareaClubApp(viewModel: MareaViewModel, family: FamilyViewModel) {
     when (activeSubScreen) {
         SubScreen.SALVAVIDAS -> {
             SalvavidasScreen(
-                // El envío real de pedidos llega en la entrega 4: no se simula.
-                onRequestCompanion = null,
-                unavailableText = if (childLinked)
-                    "Ya estás vinculado con ${familyInfo?.adultNameList()?.joinToString(" y ").orEmpty()}. El envío de pedidos se activa en la próxima actualización de la app; mientras tanto, usa las líneas de abajo o búscalo en persona."
-                else
-                    "Todavía no tienes un adulto vinculado. Pídele a un adulto de tu familia un código para vincular tu perfil.",
-                onOpenFamily = if (childLinked) null else ({ activeSubScreen = SubScreen.FAMILY }),
+                linkedAdults = if (childLinked) familyInfo?.let { info -> info.adultUids.map { it to (info.adultNames[it] ?: "Adulto") } }.orEmpty() else emptyList(),
+                requests = requests,
+                busy = familyBusy,
+                message = familyMessage,
+                onSend = { to, reason -> family.sendRequest(to, reason) },
+                onSetStatus = { id, status -> family.childSetRequestStatus(id, status) },
+                onOpenFamily = { activeSubScreen = SubScreen.FAMILY },
                 onOpenAllLines = { activeSubScreen = SubScreen.DIRECTORY },
                 onBack = { activeSubScreen = null },
                 modifier = Modifier
@@ -206,6 +218,7 @@ fun MareaClubApp(viewModel: MareaViewModel, family: FamilyViewModel) {
             ChildFamilyScreen(
                 family = family,
                 userName = userName,
+                currentWeek = currentWeek,
                 onBack = { activeSubScreen = null },
                 modifier = safe
             )

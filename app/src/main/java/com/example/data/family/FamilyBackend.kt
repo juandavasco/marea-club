@@ -70,7 +70,54 @@ interface FamilyBackend {
     suspend fun unlinkChild(familyId: String)
     suspend fun removeSecondAdult(familyId: String, ownerUid: String)
     suspend fun childLeaves(familyId: String)
+
+    // Mis salvavidas
+    suspend fun sendCompanionRequest(familyId: String, toUid: String, reason: CompanionReason): String
+    /** Niño: sus pedidos. Adulto: los pedidos dirigidos a él. Más recientes primero. */
+    fun observeRequests(familyId: String, asChild: Boolean, onChange: (List<CompanionRequest>) -> Unit): Subscription
+    suspend fun respondToRequest(familyId: String, requestId: String, status: RequestStatus)
+    suspend fun childUpdateRequest(familyId: String, requestId: String, status: RequestStatus)
+
+    // Compartir mi semana
+    suspend fun shareWeek(familyId: String, week: SharedWeek)
+    suspend fun stopSharingWeek(familyId: String)
+    fun observeSharedWeek(familyId: String, onChange: (SharedWeek?) -> Unit): Subscription
 }
+
+/** Motivo general del pedido: nunca texto libre ni emociones (Documento Técnico §11). */
+enum class CompanionReason(val wire: String, val label: String) {
+    COMPANIA("compania", "Quiero compañía"),
+    HABLAR("hablar", "Quiero hablar con alguien"),
+    AYUDA("ayuda", "Necesito ayuda con algo");
+
+    companion object {
+        fun fromWire(w: String?) = entries.firstOrNull { it.wire == w } ?: COMPANIA
+    }
+}
+
+/** Estados reales del pedido. "Sin respuesta" no se guarda: se calcula a los 15 minutos. */
+enum class RequestStatus(val wire: String) {
+    ENVIADA("enviada"), VISTA("vista"), VOY("voy"), NO_PUEDO("no_puedo"), CANCELADA("cancelada"), CERRADA("cerrada");
+
+    val isOpen: Boolean get() = this == ENVIADA || this == VISTA || this == VOY || this == NO_PUEDO
+
+    companion object {
+        fun fromWire(w: String?) = entries.firstOrNull { it.wire == w } ?: ENVIADA
+    }
+}
+
+data class CompanionRequest(
+    val id: String,
+    val childUid: String,
+    val toUid: String,
+    val reason: CompanionReason,
+    val createdAtMillis: Long,
+    val status: RequestStatus,
+    val respondedAtMillis: Long?
+)
+
+/** Lo único que se comparte de la semana, y solo si el niño lo activa. */
+data class SharedWeek(val weekStart: String, val counts: Map<String, Int>, val daysWithRecord: Int, val updatedAtMillis: Long)
 
 class BackendUnavailable(cause: Throwable? = null) : Exception("Sin conexión con el servidor", cause)
 
