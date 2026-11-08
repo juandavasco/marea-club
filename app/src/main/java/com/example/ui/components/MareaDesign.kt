@@ -166,7 +166,8 @@ fun MareaPrimaryButton(
             .heightIn(min = 52.dp)
             .then(if (tag != null) Modifier.testTag(tag) else Modifier)
     ) {
-        Text(text, fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, fontSize = 16.sp, textAlign = TextAlign.Center)
+        // La tipografía del tema fija un color oscuro: hay que usar el color del botón explícitamente.
+        Text(text, fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, fontSize = 16.sp, textAlign = TextAlign.Center, color = LocalContentColor.current)
     }
 }
 
@@ -190,7 +191,7 @@ fun MareaSecondaryButton(
             .heightIn(min = 48.dp)
             .then(if (tag != null) Modifier.testTag(tag) else Modifier)
     ) {
-        Text(text, fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, fontSize = 15.sp, textAlign = TextAlign.Center)
+        Text(text, fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, fontSize = 15.sp, textAlign = TextAlign.Center, color = LocalContentColor.current)
     }
 }
 

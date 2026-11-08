@@ -29,7 +29,7 @@ object MareaContent {
         activity("act_respiracion", "Respiración del Océano", ActivityCategory.RESPIRACION, "3 min",
             "Respira siguiendo las olas con Muni.", listOf(MareaType.MOVIDA, MareaType.ALTA, MareaType.TORMENTA, MareaType.NO_SE), "🌊"),
         activity("act_burbujas", "Burbujas de descarga", ActivityCategory.RESPIRACION, "2 min",
-            "Revienta burbujas para soltar tensión.", listOf(MareaType.MOVIDA, MareaType.ALTA), "🫧"),
+            "Revienta burbujas para soltar tensión.", listOf(MareaType.MOVIDA, MareaType.ALTA), "🎈"),
         activity("act_sonidos", "Sonidos del océano", ActivityCategory.RESPIRACION, "1 min o más",
             "Escucha olas, brisa, campanas o lluvia.", listOf(MareaType.TORMENTA, MareaType.ALTA, MareaType.TRANQUILA), "🎧"),
         activity("act_diario", "Diario del Mar", ActivityCategory.ESCRITURA, "5 min",

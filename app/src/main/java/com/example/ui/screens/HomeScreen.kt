@@ -137,7 +137,7 @@ fun HomeScreen(
         // 3. Mis salvavidas, siempre a la mano
         MareaSectionTitle("Si necesitas a alguien")
         MareaListRow(
-            icon = "🛟",
+            icon = "💙",
             title = "Mis salvavidas",
             subtitle = "Pide compañía a un adulto de confianza o encuentra ayuda",
             onClick = onOpenSalvavidas,
