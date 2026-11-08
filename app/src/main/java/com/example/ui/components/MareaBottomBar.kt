@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import com.example.model.BottomNavTab
 import com.example.ui.theme.MareaDeepBlue
 import com.example.ui.theme.MareaTealBar
+import com.example.ui.theme.MareaTealText
 import com.example.ui.theme.QuicksandFontFamily
 
 @Composable
