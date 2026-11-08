@@ -41,7 +41,10 @@ class AppFlowsTest {
     private fun tag(t: String) = compose.onNodeWithTag(t, useUnmergedTree = true)
 
     private fun click(t: String) {
-        tag(t).performScrollTo().performClick()
+        val node = tag(t)
+        // Algunos controles están en diálogos o encabezados que no se desplazan
+        runCatching { node.performScrollTo() }
+        node.performClick()
         compose.waitForIdle()
     }
 

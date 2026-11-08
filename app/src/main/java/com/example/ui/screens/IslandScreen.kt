@@ -73,8 +73,23 @@ fun IslandScreen(
     onSkyMode: (SkyMode) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var inspected by remember { mutableStateOf<PlacedIslandObject?>(null) }
+    var inspectedId by remember { mutableStateOf<String?>(null) }
     var showSky by remember { mutableStateOf(false) }
+
+    // Detalle a pantalla completa (no en un diálogo: el campo de texto funciona mejor con lectores de pantalla)
+    val inspected = islandState.placed.firstOrNull { it.objectId == inspectedId }
+    if (inspected != null) {
+        IslandObjectDetail(
+            placed = inspected,
+            onSave = { text ->
+                onSaveReflection(inspected.objectId, text)
+                inspectedId = null
+            },
+            onBack = { inspectedId = null },
+            modifier = modifier
+        )
+        return
+    }
 
     Column(
         modifier = modifier
@@ -117,7 +132,7 @@ fun IslandScreen(
                             .background(Color.White)
                             .border(2.5.dp, MareaDeepBlue, CircleShape)
                             .semantics { contentDescription = "${obj.name}: ${obj.meaning}" }
-                            .clickable { inspected = placed }
+                            .clickable { inspectedId = placed.objectId }
                             .testTag("island_object_${obj.id}"),
                         contentAlignment = Alignment.Center
                     ) {
@@ -146,7 +161,7 @@ fun IslandScreen(
                             .heightIn(min = 64.dp)
                             .clip(RoundedCornerShape(16.dp))
                             .background(Color.White)
-                            .clickable { inspected = placed }
+                            .clickable { inspectedId = placed.objectId }
                             .testTag("island_row_${obj.id}")
                             .padding(horizontal = MareaSpace.l, vertical = MareaSpace.m)
                     ) {
@@ -162,17 +177,6 @@ fun IslandScreen(
 
         Spacer(Modifier.height(MareaSpace.l))
         MareaSecondaryButton(text = "Cambiar el cielo", onClick = { showSky = true }, tag = "island_sky_button")
-    }
-
-    inspected?.let { placed ->
-        IslandObjectDialog(
-            placed = placed,
-            onSave = { text ->
-                onSaveReflection(placed.objectId, text)
-                inspected = null
-            },
-            onDismiss = { inspected = null }
-        )
     }
 
     if (showSky) {
@@ -200,48 +204,56 @@ fun IslandScreen(
 
 /** Detalle de un objeto: significado, de dónde vino y una reflexión privada opcional. */
 @Composable
-private fun IslandObjectDialog(placed: PlacedIslandObject, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+private fun IslandObjectDetail(
+    placed: PlacedIslandObject,
+    onSave: (String) -> Unit,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val obj = IslandObjects.byId(placed.objectId) ?: return
     var text by remember(placed.objectId) { mutableStateOf(placed.reflection) }
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(shape = RoundedCornerShape(24.dp), color = Color.White, modifier = Modifier.testTag("island_object_dialog")) {
-            Column(Modifier.padding(MareaSpace.xl), horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    Modifier
-                        .size(88.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFE3F2F8)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(islandObjectIcon(obj.id), contentDescription = null, tint = MareaDeepBlue, modifier = Modifier.size(48.dp))
-                }
-                Text(obj.name, fontFamily = SnigletFontFamily, fontSize = 24.sp, color = MareaDeepBlue, modifier = Modifier.padding(top = MareaSpace.m))
-                Text(obj.meaning, fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = MareaTextDark)
-                Text(
-                    "Llegó a tu isla después de «${placed.sourceTitle}».",
-                    fontFamily = NunitoFontFamily,
-                    fontSize = 14.sp,
-                    color = MareaTextMuted,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .padding(top = MareaSpace.s)
-                        .testTag("island_object_origin")
-                )
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    label = { Text("¿Qué significa para ti? (opcional)") },
-                    supportingText = { Text("Privado: solo tú lo ves.") },
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = MareaSpace.l)
-                        .testTag("island_reflection_input")
-                )
-                Spacer(Modifier.height(MareaSpace.m))
-                MareaPrimaryButton("Guardar", onClick = { onSave(text) }, tag = "island_reflection_save")
-                MareaTextButton("Cerrar", onClick = onDismiss, tag = "island_object_close")
-            }
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = MareaSpace.screen)
+            .padding(bottom = MareaSpace.xl)
+            .testTag("island_object_detail"),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        MareaHeader(title = obj.name, subtitle = obj.meaning, onBack = onBack)
+        Box(
+            Modifier
+                .size(96.dp)
+                .clip(CircleShape)
+                .background(Color(0xFFE3F2F8)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(islandObjectIcon(obj.id), contentDescription = null, tint = MareaDeepBlue, modifier = Modifier.size(52.dp))
         }
+        Text(
+            "Llegó a tu isla después de «${placed.sourceTitle}».",
+            fontFamily = NunitoFontFamily,
+            fontSize = 15.sp,
+            color = MareaTextDark,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .padding(top = MareaSpace.m)
+                .testTag("island_object_origin")
+        )
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            label = { Text("¿Qué significa para ti? (opcional)") },
+            supportingText = { Text("Privado: solo tú lo ves.") },
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = MareaSpace.l)
+                .testTag("island_reflection_input")
+        )
+        Spacer(Modifier.height(MareaSpace.m))
+        MareaPrimaryButton("Guardar", onClick = { onSave(text) }, tag = "island_reflection_save")
+        MareaTextButton("Volver a mi isla", onClick = onBack, tag = "island_object_close")
     }
 }

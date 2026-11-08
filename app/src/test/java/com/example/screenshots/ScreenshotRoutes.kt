@@ -9,7 +9,11 @@ import com.example.ui.MareaViewModel
 /** Recorrido de pantallas para las capturas. Se actualiza cuando cambia la navegación. */
 object ScreenshotRoutes {
     fun capture(tag: (String) -> SemanticsNodeInteraction, shot: (String) -> Unit, vm: MareaViewModel) {
-        fun click(t: String) = tag(t).performScrollTo().performClick()
+        fun click(t: String) {
+            val node = tag(t)
+            runCatching { node.performScrollTo() }
+            node.performClick()
+        }
 
         // Mareas
         tag("tab_marea").performClick(); shot("03-mareas")
@@ -39,9 +43,11 @@ object ScreenshotRoutes {
         click("guided_finish"); shot("13-elegir-objeto")
         click("offer_faro"); click("offer_confirm")
         tag("tab_island").performClick(); shot("14-isla-con-objeto")
+        click("island_row_faro"); shot("15-isla-detalle-objeto")
+        click("island_object_close")
 
         // Mis salvavidas
         tag("tab_home").performClick()
-        click("home_salvavidas"); shot("15-salvavidas")
+        click("home_salvavidas"); shot("16-salvavidas")
     }
 }
