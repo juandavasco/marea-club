@@ -78,7 +78,7 @@ fun ActivityRunnerScreen(
                 )
             }
 
-            // Reward badge preview
+            // Ícono de la herramienta (ya no es una recompensa)
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(12.dp))
@@ -86,7 +86,7 @@ fun ActivityRunnerScreen(
                     .padding(horizontal = 8.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = activity.rewardIcon, fontSize = 16.sp)
+                Text(text = activity.icon, fontSize = 16.sp)
             }
         }
 
@@ -113,6 +113,8 @@ fun ActivityRunnerScreen(
                 "act_autoestima" -> InteractiveStrengthConstellation(onComplete = onComplete)
                 "act_conchas" -> InteractiveShellPearlGame(onComplete = onComplete)
                 "act_dibujo" -> InteractiveFreeDrawingCanvas(onComplete = onComplete)
+                "act_burbujas" -> BubblePopTool(onCompleted = onComplete)
+                "act_sonidos" -> OceanSoundPlayer(onCompleted = onComplete)
                 else -> InteractiveOceanBreathing(onComplete = onComplete)
             }
         }
@@ -520,7 +522,7 @@ private fun InteractiveStrengthConstellation(onComplete: () -> Unit) {
                     .testTag("complete_constellation_button")
             ) {
                 Text(
-                    text = "Iluminar mi isla (${litStars.size} estrellas) ➔",
+                    text = "Terminar (${litStars.size} estrellas) ➔",
                     fontFamily = SnigletFontFamily,
                     fontSize = 14.sp,
                     color = MareaDeepBlue

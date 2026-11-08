@@ -2,12 +2,10 @@ package com.example.data
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import com.example.domain.IslandRules
 import com.example.model.ActivityFeedback
 import com.example.model.MareaType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -53,8 +51,8 @@ class MareaRepositoryTest {
         val r = repo()
         assertFalse(r.isOnboarded.value)
         assertTrue(r.logs.value.isEmpty())
-        assertTrue(r.islandState.value.unlockedElementIds.isEmpty())
-        assertEquals(0, r.calmMomentsCount.value)
+        assertTrue(r.islandState.value.placed.isEmpty())
+        assertTrue(r.completions.value.isEmpty())
     }
 
     @Test
@@ -71,6 +69,16 @@ class MareaRepositoryTest {
     }
 
     @Test
+    fun `mareas - No se guarda si no encuentra emocion o palabra`() {
+        val r = repo()
+        r.recordMarea(MareaType.NO_SE, "", "", "", "", uncertainty = "SIN_PALABRA")
+        assertEquals("SIN_PALABRA", repo().logs.value.first().uncertainty)
+        // En otras mareas la incertidumbre no aplica
+        r.recordMarea(MareaType.ALTA, "", "", "", "", uncertainty = "NO_SE")
+        assertEquals("", r.logs.value.first().uncertainty)
+    }
+
+    @Test
     fun `17-2 y filas 2-3 - no se sabe que siente y no elige contexto`() {
         val r = repo()
         val entry = r.recordMarea(MareaType.NO_SE, "", "", "", "")
@@ -84,59 +92,75 @@ class MareaRepositoryTest {
     fun `fila 21 - registrar emociones dificiles no cambia la isla`() {
         val r = repo()
         r.recordMarea(MareaType.TORMENTA, "", "", "", "")
-        assertEquals(1, r.islandState.value.level)
-        assertEquals(0, r.islandState.value.progressPercent)
+        assertTrue(r.islandState.value.placed.isEmpty())
     }
 
     @Test
-    fun `17-4 y filas 16-17 - actividad desbloquea su elemento y lo explica`() {
+    fun `isla - una actividad significativa ofrece objetos y el nino elige uno`() {
         val r = repo()
-        val reward = r.completeActivity("act_diario")!!
-        assertTrue(reward.newlyUnlocked)
-        assertEquals("Diario del Mar", reward.sourceTitle)
-        assertEquals("Sillón de Arena Azul", reward.elementName)
-        assertTrue("sofa_azul" in r.islandState.value.unlockedElementIds)
-        // El elemento anunciado existe en la isla
-        assertNotNull(r.allIslandElements.firstOrNull { it.name == reward.elementName })
+        val offer = r.completeGuidedActivity("act_mapa_situaciones")!!
+        assertEquals(listOf("jardin", "faro"), offer.objectIds)
+        assertTrue(r.placeIslandObject(offer, "faro"))
+        val placed = repo().islandState.value.placed.single()
+        assertEquals("faro", placed.objectId)
+        assertEquals("Mi mapa de situaciones", placed.sourceTitle)
     }
 
     @Test
-    fun `fila 16 - cada actividad del catalogo anuncia el elemento que realmente desbloquea`() {
+    fun `isla - no se puede colocar un objeto que no fue ofrecido ni repetirlo`() {
         val r = repo()
-        r.availableActivities.forEach { act ->
-            val expected = IslandRules.unlockForSource(act.id)!!
-            assertEquals(expected.elementName, act.rewardTitle)
-            val element = r.allIslandElements.first { it.id == expected.elementId }
-            assertEquals(expected.elementName, element.name)
-        }
+        val offer = r.completeGuidedActivity("act_dos_mareas")!!
+        assertFalse(r.placeIslandObject(offer, "puente"))
+        assertTrue(r.placeIslandObject(offer, "hamaca"))
+        assertFalse(r.placeIslandObject(offer, "hamaca"))
+        // La siguiente oferta ya no incluye la hamaca
+        val next = r.completeGuidedActivity("act_dos_mareas")!!
+        assertEquals(listOf("jardin"), next.objectIds)
     }
 
     @Test
-    fun `fila 16 - burbujas y sonidos desbloquean su propio elemento`() {
+    fun `isla - decir ahora no deja la isla igual`() {
         val r = repo()
-        assertEquals("Farol de la Calma", r.completeActivity("act_burbujas")!!.elementName)
-        assertEquals("Estanque Cristalino", r.completeActivity("act_sonidos")!!.elementName)
-        assertFalse("flores_coral" in r.islandState.value.unlockedElementIds)
+        r.completeGuidedActivity("act_mi_ritmo")
+        assertTrue(r.islandState.value.placed.isEmpty())
+        assertEquals(1, r.completions.value.size)
+    }
+
+    @Test
+    fun `isla - las herramientas para calmarme no cambian la isla`() {
+        val r = repo()
+        r.calmTools.forEach { r.completeCalmTool(it.id) }
+        assertTrue(r.islandState.value.placed.isEmpty())
+        assertEquals(r.calmTools.size, r.completions.value.size)
+    }
+
+    @Test
+    fun `isla - la reflexion de un objeto queda cifrada y se recupera`() {
+        val r = repo(TinkTextCipher(context))
+        val offer = r.completeGuidedActivity("act_mapa_situaciones")!!
+        r.placeIslandObject(offer, "jardin")
+        r.setIslandReflection("jardin", "me recuerda cuidar mis plantas")
+        assertFalse(prefsDump().contains("plantas"))
+        assertEquals("me recuerda cuidar mis plantas", repo(TinkTextCipher(context)).islandState.value.placed.single().reflection)
     }
 
     @Test
     fun `fila 9 - la respuesta te ayudo es opcional y se guarda`() {
         val r = repo()
-        val reward = r.completeActivity("act_respiracion")!!
-        r.recordActivityFeedback(reward.completionId, ActivityFeedback.AYUDO)
+        val closing = r.completeCalmTool("act_respiracion")
+        r.recordActivityFeedback(closing.completionId, ActivityFeedback.AYUDO)
         assertEquals(ActivityFeedback.AYUDO, repo().completions.value.first().feedback)
-        val second = r.completeActivity("act_conchas")!!
+        val second = r.completeCalmTool("act_conchas")
         assertNull(r.completions.value.first { it.id == second.completionId }.feedback)
     }
 
     @Test
-    fun `contadores reales - momentos de calma y actividades distintas`() {
+    fun `actividad - el diario solo guarda lo que el nino elige`() {
         val r = repo()
-        r.completeActivity("act_respiracion")
-        r.completeActivity("act_respiracion")
-        r.completeActivity("act_dibujo")
-        assertEquals(3, r.calmMomentsCount.value)
-        assertEquals(2, r.activitiesExploredCount.value)
+        r.completeGuidedActivity("act_lo_que_necesito")
+        assertTrue(r.reflections.value.isEmpty())
+        r.saveActivityToDiary("Lo que necesito", "Necesito que me escuchen")
+        assertEquals("Lo que necesito", repo().reflections.value.single().prompt)
     }
 
     @Test
@@ -150,10 +174,11 @@ class MareaRepositoryTest {
     }
 
     @Test
-    fun `reflexion semanal desbloquea el muelle`() {
+    fun `reflexion semanal se guarda y no cambia la isla`() {
         val r = repo()
-        val reward = r.addReflection("Respirar antes del examen me ayudó")!!
-        assertEquals("Muelle del Horizonte", reward.elementName)
+        r.addReflection("Respirar antes del examen me ayudó")
+        assertEquals(1, r.reflections.value.size)
+        assertTrue(r.islandState.value.placed.isEmpty())
     }
 
     @Test
@@ -187,18 +212,17 @@ class MareaRepositoryTest {
         val r = repo()
         r.completeOnboarding()
         r.recordMarea(MareaType.ALTA, "Familia", "", "", "nota")
-        r.completeActivity("act_dibujo")
+        r.completeCalmTool("act_dibujo")
+        r.placeIslandObject(r.completeGuidedActivity("act_mapa_situaciones")!!, "faro")
         r.addDiaryEntry("p", "texto")
-        r.submitAnonymousConsultation("hola")
         r.toggleFavoriteRoute("route_linea_amiga")
         r.resetAllData()
         assertFalse(r.isOnboarded.value)
         assertTrue(r.logs.value.isEmpty())
         assertTrue(r.reflections.value.isEmpty())
-        assertTrue(r.consultations.value.isEmpty())
         assertTrue(r.favoriteRouteIds.value.isEmpty())
-        assertTrue(r.islandState.value.unlockedElementIds.isEmpty())
-        assertEquals(0, r.calmMomentsCount.value)
+        assertTrue(r.islandState.value.placed.isEmpty())
+        assertTrue(r.completions.value.isEmpty())
         assertFalse(repo().isOnboarded.value)
     }
 
@@ -207,11 +231,9 @@ class MareaRepositoryTest {
         val r = repo(TinkTextCipher(context))
         r.recordMarea(MareaType.TORMENTA, "Familia", "", "", "me siento muy triste hoy")
         r.addDiaryEntry("p", "secreto del diario")
-        r.submitAnonymousConsultation("mensaje privado de prueba")
         val dump = prefsDump()
         assertFalse(dump.contains("triste"))
         assertFalse(dump.contains("secreto"))
-        assertFalse(dump.contains("privado"))
         assertFalse(dump.contains("TORMENTA"))
         // Y se recupera con la misma clave
         val again = repo(TinkTextCipher(context))
@@ -223,36 +245,13 @@ class MareaRepositoryTest {
         context.getSharedPreferences(MareaRepository.PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString("saved_logs", "[{\"note\":\"texto plano viejo\"}]")
             .putString("family_link_code", "MAR-482")
+            .putString("unlocked_elements", "sofa_azul")
             .commit()
         repo()
         val dump = prefsDump()
         assertFalse(dump.contains("texto plano viejo"))
         assertFalse(dump.contains("MAR-482"))
-    }
-
-    @Test
-    fun `filas 38-39 - la consulta anonima siempre ofrece ayuda humana y dice que es demostracion`() {
-        val r = repo()
-        val normal = r.submitAnonymousConsultation("Tuve un mal día en el colegio")
-        assertTrue(normal.muniResponse.contains("106"))
-        assertTrue(normal.muniResponse.contains("demostración"))
-        assertFalse(normal.isEmergencyFlagged)
-        val risk = r.submitAnonymousConsultation("Ya no aguanto más, quiero hacerme daño")
-        assertTrue(risk.isEmergencyFlagged)
-        assertTrue(risk.muniResponse.contains("123"))
-    }
-
-    @Test
-    fun `fila 37 - la autoevaluacion no muestra puntajes y siempre sugiere rutas`() {
-        val r = repo()
-        val q = r.questionnaires.first()
-        val allHigh = q.questions.indices.associateWith { 2 }
-        val allLow = q.questions.indices.associateWith { 0 }
-        listOf(allHigh, allLow).forEach { answers ->
-            val result = r.evaluateQuestionnaire(q.id, answers)
-            assertTrue(result.suggestedRouteIds.contains("route_linea_amiga"))
-            assertFalse(result.message.contains(Regex("\\d+ ?/ ?\\d+|puntaje|nivel", RegexOption.IGNORE_CASE)))
-        }
+        assertFalse(dump.contains("sofa_azul"))
     }
 
     @Test

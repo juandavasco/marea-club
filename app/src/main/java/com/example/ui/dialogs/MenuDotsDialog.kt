@@ -28,8 +28,6 @@ fun MenuDotsDialog(
     onDismiss: () -> Unit,
     onOpenArchivo: () -> Unit,
     onOpenSupport: () -> Unit,
-    onOpenSelfEvaluation: () -> Unit,
-    onOpenAnonymousConsultation: () -> Unit,
     onReplayWelcome: () -> Unit,
     onOpenPrivacy: () -> Unit = {},
     onResetData: () -> Unit = {}
@@ -81,38 +79,12 @@ fun MenuDotsDialog(
 
                 MenuItemRow(
                     icon = Icons.Default.Healing,
-                    title = "Rutas de Atención (Medellín)",
-                    subtitle = "Línea 106, Línea Amiga, Escuchaderos y 123",
+                    title = "Mis salvavidas",
+                    subtitle = "Pedir compañía y líneas de ayuda de Medellín",
                     tag = "menu_support_button",
                     onClick = {
                         onDismiss()
                         onOpenSupport()
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                MenuItemRow(
-                    icon = Icons.Default.AssignmentTurnedIn,
-                    title = "Autoevaluación Preliminar",
-                    subtitle = "Cuestionario breve no clínico de orientación",
-                    tag = "menu_self_eval_button",
-                    onClick = {
-                        onDismiss()
-                        onOpenSelfEvaluation()
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                MenuItemRow(
-                    icon = Icons.Default.Lock,
-                    title = "Consulta Anónima",
-                    subtitle = "Demostración: nadie lee estos mensajes",
-                    tag = "menu_anonymous_button",
-                    onClick = {
-                        onDismiss()
-                        onOpenAnonymousConsultation()
                     }
                 )
 
@@ -170,7 +142,7 @@ fun MenuDotsDialog(
                             color = MareaTextDark
                         )
                         Text(
-                            text = "Un rincón seguro para preadolescentes para reconocer cómo te sientes, respirar y cuidar tu isla personal a tu propio ritmo con la compañía de Muni.",
+                            text = "Un espacio para chicos y chicas de 11 a 14 años: reconocer cómo te sientes, explorar actividades cortas y pedir compañía cuando la necesites, junto a Muni.",
                             fontFamily = NunitoFontFamily,
                             fontSize = 11.sp,
                             color = MareaTextMuted,

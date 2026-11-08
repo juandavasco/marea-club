@@ -10,7 +10,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Landscape
 import androidx.compose.material.icons.filled.Waves
@@ -44,7 +44,7 @@ fun MareaBottomBar(
         modifier = modifier
             .fillMaxWidth()
             .height(72.dp)
-            .background(MareaTealBar)
+            .background(MareaTealText)
             .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
         Row(
@@ -70,22 +70,22 @@ fun MareaBottomBar(
                 onClick = { onTabSelected(BottomNavTab.MAREA) }
             )
 
-            // 3. Mi isla
+            // 3. Actividades
+            BottomNavItem(
+                icon = Icons.Default.Explore,
+                label = "Actividades",
+                isSelected = currentTab == BottomNavTab.ACTIVIDADES,
+                tag = "tab_activities",
+                onClick = { onTabSelected(BottomNavTab.ACTIVIDADES) }
+            )
+
+            // 4. Mi isla
             BottomNavItem(
                 icon = Icons.Default.Landscape,
                 label = "Mi isla",
                 isSelected = currentTab == BottomNavTab.ISLAND,
                 tag = "tab_island",
                 onClick = { onTabSelected(BottomNavTab.ISLAND) }
-            )
-
-            // 4. Mi progreso
-            BottomNavItem(
-                icon = Icons.Default.BarChart,
-                label = "Mi progreso",
-                isSelected = currentTab == BottomNavTab.PROGRESS,
-                tag = "tab_progress",
-                onClick = { onTabSelected(BottomNavTab.PROGRESS) }
             )
         }
     }
@@ -107,7 +107,7 @@ private fun BottomNavItem(
     )
 
     val contentColor by animateColorAsState(
-        targetValue = if (isSelected) Color.White else Color.White.copy(alpha = 0.75f),
+        targetValue = if (isSelected) Color.White else Color.White.copy(alpha = 0.9f),
         label = "content_color"
     )
 
@@ -127,7 +127,8 @@ private fun BottomNavItem(
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 14.dp, vertical = 6.dp)
+            .heightIn(min = 52.dp)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
             .testTag(tag),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center

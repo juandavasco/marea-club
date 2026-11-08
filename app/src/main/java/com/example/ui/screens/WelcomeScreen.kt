@@ -86,7 +86,7 @@ fun WelcomeScreen(
             )
 
             Text(
-                text = "Las emociones cambian igual que las mareas del mar. Aquí puedes reconocer lo que sientes, cuidar tu isla personal y encontrar calma a tu propio ritmo.",
+                text = "Las emociones cambian igual que las mareas del mar. Aquí puedes reconocer lo que sientes, explorar actividades cortas y encontrar calma a tu propio ritmo.",
                 fontFamily = NunitoFontFamily,
                 fontSize = 14.sp,
                 lineHeight = 20.sp,
@@ -98,16 +98,16 @@ fun WelcomeScreen(
             // 3 Pillar Highlights
             PillarCard(
                 icon = "🌊",
-                title = "Las Cuatro Mareas",
-                description = "Tranquila, Movida, Alta, Tormenta o No sé qué siento. Cada emoción tiene un lugar respetado sin juicios."
+                title = "Cinco formas de nombrar tu marea",
+                description = "Tranquila, Movida, Alta, Tormenta o No sé. Ninguna es buena ni mala: todas tienen un lugar."
             )
 
             Spacer(modifier = Modifier.height(10.dp))
 
             PillarCard(
                 icon = "🏝️",
-                title = "Tu Isla Evolutiva",
-                description = "Un refugio vivo que crece y florece cada vez que practicas una pausa, respiras o escribes."
+                title = "Tu isla",
+                description = "Un lugar tuyo donde puedes guardar objetos que te recuerdan lo que has explorado. No hay niveles ni metas."
             )
 
             Spacer(modifier = Modifier.height(10.dp))

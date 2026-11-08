@@ -1,5 +1,10 @@
 package com.example.ui.screens
 
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.Role
+import com.example.ui.components.MareaSpace
+import com.example.ui.components.MareaOption
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
@@ -56,7 +61,10 @@ fun MareaSelectionScreen(
     onLaunchActivity: (ActivityItem) -> Unit,
     onBack: () -> Unit,
     onOpenSupportDirectory: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Encabezado que pone la pestaña Mareas (título y selector Registrar / Mi semana). */
+    headerContent: (@Composable () -> Unit)? = null,
+    onSaveUncertainty: (String) -> Unit = {}
 ) {
     // Nada viene preseleccionado: el usuario elige su marea y, si quiere, el contexto (§4–§5).
     var selectedMarea by remember { mutableStateOf<MareaType?>(null) }
@@ -65,6 +73,7 @@ fun MareaSelectionScreen(
     var selectedLocation by remember(selectedMarea) { mutableStateOf("") }
     var customNote by remember { mutableStateOf("") }
     var hasSaved by remember(selectedMarea) { mutableStateOf(false) }
+    var uncertainty by remember(selectedMarea) { mutableStateOf("") }
 
     val standardSituations = listOf("Amigos", "Escuela / Tareas", "Familia", "Cansancio", "Tiempo para mí", "Cambio inesperado")
     val noSeBodyStates = listOf("Cuerpo tenso", "Con mucha energía", "Cansado / pesado", "Relajado y sereno")
@@ -77,48 +86,11 @@ fun MareaSelectionScreen(
         label = "tide_screen_bg"
     )
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = "¿Cómo viene mi marea?",
-                            fontFamily = SnigletFontFamily,
-                            fontSize = 20.sp,
-                            color = MareaTextDark
-                        )
-                        Text(
-                            text = "Reconoce lo que sientes, a tu propio ritmo",
-                            fontFamily = NunitoFontFamily,
-                            fontSize = 11.sp,
-                            color = MareaTextMuted
-                        )
-                    }
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = onBack,
-                        modifier = Modifier.testTag("back_from_marea_selection")
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Volver",
-                            tint = MareaDeepBlue
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = screenBg)
-            )
-        },
-        containerColor = screenBg,
-        modifier = modifier.fillMaxSize()
-    ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(screenBg)
+    ) {
             // Animated subtle wave ripples in background
             SubtleOceanCanvas(
                 tide = selectedMarea ?: MareaType.TRANQUILA,
@@ -129,81 +101,58 @@ fun MareaSelectionScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
+                    .padding(horizontal = MareaSpace.screen),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Friendly Muni Welcome Note
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f)),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(46.dp)
-                                .clip(CircleShape)
-                                .background((selectedMarea?.primaryColor ?: MareaTurquoise).copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Image(
-                                painter = painterResource(id = R.drawable.muni_isotipo),
-                                contentDescription = "Muni",
-                                modifier = Modifier.size(36.dp)
-                            )
-                        }
+                if (headerContent != null) headerContent()
 
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "El océano interior cambia constantemente",
-                                fontFamily = SnigletFontFamily,
-                                fontSize = 15.sp,
-                                color = MareaTextDark
-                            )
-                            Text(
-                                text = "Ninguna marea es buena o mala; cada una te da una pista de lo que necesitas hoy.",
-                                fontFamily = NunitoFontFamily,
-                                fontSize = 12.sp,
-                                color = MareaTextMuted
+                // 5 estados (Documento Técnico §5): cuadrícula de 2 columnas; "No sé" ocupa el ancho completo
+                val rows = listOf(
+                    listOf(MareaType.TRANQUILA, MareaType.MOVIDA),
+                    listOf(MareaType.ALTA, MareaType.TORMENTA),
+                    listOf(MareaType.NO_SE)
+                )
+                rows.forEach { row ->
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(MareaSpace.m),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = MareaSpace.m)
+                    ) {
+                        row.forEach { option ->
+                            TideTile(
+                                tide = option,
+                                isSelected = selectedMarea == option,
+                                wide = row.size == 1,
+                                onClick = { selectedMarea = option },
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = "Selecciona la corriente que sientes ahora",
-                    fontFamily = SnigletFontFamily,
-                    fontSize = 17.sp,
-                    color = MareaTextDark,
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // The 5 Oceanic Tide Cards
-                val allTides = listOf(
-                    MareaType.TRANQUILA,
-                    MareaType.MOVIDA,
-                    MareaType.ALTA,
-                    MareaType.TORMENTA,
-                    MareaType.NO_SE
-                )
-
-                allTides.forEach { tide ->
-                    OceanicTideCard(
-                        tide = tide,
-                        isSelected = selectedMarea == tide,
-                        onClick = { selectedMarea = tide },
-                        modifier = Modifier.padding(vertical = 5.dp)
-                    )
+                // Opción de incertidumbre en dos formas (Prompt Maestro §5.2)
+                if (selectedMarea == MareaType.NO_SE) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(MareaSpace.s),
+                        modifier = Modifier.padding(bottom = MareaSpace.m)
+                    ) {
+                        MareaOption(
+                            text = "No sé qué siento",
+                            selected = uncertainty == "NO_SE",
+                            onClick = { uncertainty = if (uncertainty == "NO_SE") "" else "NO_SE" },
+                            tag = "uncertainty_no_se"
+                        )
+                        MareaOption(
+                            text = "No encuentro una emoción que describa cómo estoy",
+                            selected = uncertainty == "SIN_PALABRA",
+                            onClick = { uncertainty = if (uncertainty == "SIN_PALABRA") "" else "SIN_PALABRA" },
+                            tag = "uncertainty_sin_palabra"
+                        )
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(MareaSpace.s))
 
                 Spacer(modifier = Modifier.height(18.dp))
 
@@ -465,6 +414,7 @@ fun MareaSelectionScreen(
                         // Action buttons
                         Button(
                             onClick = {
+                                onSaveUncertainty(uncertainty)
                                 onSaveMarea(tide, selectedSituation, selectedTimeOfDay, selectedLocation, customNote)
                                 hasSaved = true
                             },
@@ -510,6 +460,7 @@ fun MareaSelectionScreen(
                             OutlinedButton(
                                 onClick = {
                                     if (!hasSaved) {
+                                        onSaveUncertainty(uncertainty)
                                         onSaveMarea(tide, selectedSituation, selectedTimeOfDay, selectedLocation, customNote)
                                         hasSaved = true
                                     }
@@ -538,119 +489,6 @@ fun MareaSelectionScreen(
 
                 Spacer(modifier = Modifier.height(30.dp))
             }
-        }
-    }
-}
-
-@Composable
-private fun OceanicTideCard(
-    tide: MareaType,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.02f else 1.0f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy),
-        label = "tide_card_scale"
-    )
-
-    val cardBorder = if (isSelected) {
-        androidx.compose.foundation.BorderStroke(2.5.dp, tide.primaryColor)
-    } else {
-        androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD0E3EA))
-    }
-
-    Card(
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = cardBorder,
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 1.dp),
-        modifier = modifier
-            .fillMaxWidth()
-            .scale(scale)
-            .clickable(onClick = onClick)
-            .testTag("tide_card_${tide.name.lowercase()}")
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            // Jellyfish in glowing circular portal
-            Box(
-                modifier = Modifier
-                    .size(62.dp)
-                    .clip(CircleShape)
-                    .background(tide.backgroundColor)
-                    .border(
-                        width = if (isSelected) 2.5.dp else 1.dp,
-                        color = if (isSelected) tide.primaryColor else tide.secondaryColor.copy(alpha = 0.4f),
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = tide.drawableRes),
-                    contentDescription = "Marea ${tide.title}",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(2.dp)
-                        .clip(CircleShape)
-                )
-            }
-
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text(
-                        text = "Marea ${tide.title}",
-                        fontFamily = SnigletFontFamily,
-                        fontSize = 17.sp,
-                        color = if (isSelected) tide.textColor else MareaTextDark
-                    )
-
-                    if (isSelected) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = tide.textColor,
-                            modifier = Modifier.padding(start = 4.dp)
-                        ) {
-                            Text(
-                                text = "Activa ✓",
-                                fontFamily = QuicksandFontFamily,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp,
-                                color = Color.White,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-
-                Text(
-                    text = tide.subtitle,
-                    fontFamily = QuicksandFontFamily,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 12.sp,
-                    color = tide.textColor
-                )
-
-                Text(
-                    text = tide.description,
-                    fontFamily = NunitoFontFamily,
-                    fontSize = 11.sp,
-                    color = MareaTextMuted,
-                    maxLines = 2,
-                    modifier = Modifier.padding(top = 2.dp)
-                )
-            }
-        }
     }
 }
 
@@ -751,6 +589,73 @@ private fun TideSupportCard(tide: MareaType, onOpenSupportDirectory: () -> Unit)
                 color = MareaTextMuted,
                 modifier = Modifier.padding(top = 8.dp)
             )
+        }
+    }
+}
+
+
+/** Tarjeta de marea: ilustración, nombre y la frase del Documento Técnico §5. */
+@Composable
+private fun TideTile(
+    tide: MareaType,
+    isSelected: Boolean,
+    wide: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(20.dp)
+    val content: @Composable () -> Unit = {
+        Image(
+            painter = painterResource(id = tide.drawableRes),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .size(if (wide) 56.dp else 72.dp)
+                .clip(CircleShape)
+                .border(3.dp, tide.secondaryColor, CircleShape)
+        )
+    }
+    val textBlock: @Composable (Alignment.Horizontal) -> Unit = { align ->
+        Column(horizontalAlignment = align) {
+            Text(
+                text = tide.title,
+                fontFamily = QuicksandFontFamily,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp,
+                color = MareaTextDark,
+                textAlign = if (wide) TextAlign.Start else TextAlign.Center
+            )
+            Text(
+                text = tide.description,
+                fontFamily = NunitoFontFamily,
+                fontSize = 13.sp,
+                lineHeight = 17.sp,
+                color = MareaTextMuted,
+                textAlign = if (wide) TextAlign.Start else TextAlign.Center
+            )
+        }
+    }
+    val base = modifier
+        .clip(shape)
+        .background(if (isSelected) Color.White else Color.White.copy(alpha = 0.92f))
+        .border(if (isSelected) 3.dp else 1.dp, if (isSelected) tide.textColor else Color(0xFFD6E5EB), shape)
+        .semantics { selected = isSelected }
+        .clickable(role = Role.RadioButton, onClick = onClick)
+        .testTag("tide_card_${tide.name.lowercase()}")
+        .padding(MareaSpace.m)
+    if (wide) {
+        Row(modifier = base.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            content()
+            Spacer(Modifier.width(MareaSpace.m))
+            Box(Modifier.weight(1f)) { textBlock(Alignment.Start) }
+            if (isSelected) Text("✓", fontSize = 20.sp, color = tide.textColor, fontWeight = FontWeight.Bold)
+        }
+    } else {
+        Column(modifier = base.heightIn(min = 176.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            content()
+            Spacer(Modifier.height(MareaSpace.s))
+            textBlock(Alignment.CenterHorizontally)
+            if (isSelected) Text("✓ Elegida", fontSize = 13.sp, color = tide.textColor, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = MareaSpace.xs))
         }
     }
 }

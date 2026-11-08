@@ -2,9 +2,8 @@ package com.example.data
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.example.domain.IslandRules
-import com.example.domain.SafetyRules
-import com.example.domain.SelfCheckGuidance
+import com.example.domain.GuidedActivities
+import com.example.domain.IslandObjects
 import com.example.domain.WeeklySummary
 import com.example.model.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +16,7 @@ import org.json.JSONObject
  * Almacenamiento local de Marea Club.
  *
  * - Todo queda en el teléfono: la app no usa internet ni copia de seguridad en la nube.
- * - Los datos emocionales (registros, reflexiones, diario, consultas, actividades) se guardan cifrados.
+ * - Los datos emocionales (registros, reflexiones, diario, objetos de la isla, actividades) se guardan cifrados.
  * - Las reglas (isla, resumen semanal, orientación) viven en el paquete `domain` y tienen pruebas propias.
  */
 class MareaRepository(
@@ -40,14 +39,6 @@ class MareaRepository(
     private val _completions = MutableStateFlow<List<ActivityCompletion>>(emptyList())
     val completions: StateFlow<List<ActivityCompletion>> = _completions.asStateFlow()
 
-    /** "Momentos de calma": actividades terminadas (cuenta real). */
-    private val _calmMomentsCount = MutableStateFlow(0)
-    val calmMomentsCount: StateFlow<Int> = _calmMomentsCount.asStateFlow()
-
-    /** "Actividades exploradas": actividades distintas que se han terminado al menos una vez. */
-    private val _activitiesExploredCount = MutableStateFlow(0)
-    val activitiesExploredCount: StateFlow<Int> = _activitiesExploredCount.asStateFlow()
-
     private val _reflections = MutableStateFlow<List<ReflectionEntry>>(emptyList())
     val reflections: StateFlow<List<ReflectionEntry>> = _reflections.asStateFlow()
 
@@ -60,18 +51,17 @@ class MareaRepository(
     private val _isOnboarded = MutableStateFlow(false)
     val isOnboarded: StateFlow<Boolean> = _isOnboarded.asStateFlow()
 
-    private val _consultations = MutableStateFlow<List<AnonymousConsultation>>(emptyList())
-    val consultations: StateFlow<List<AnonymousConsultation>> = _consultations.asStateFlow()
-
     private val _favoriteRouteIds = MutableStateFlow<Set<String>>(emptySet())
     val favoriteRouteIds: StateFlow<Set<String>> = _favoriteRouteIds.asStateFlow()
 
     private val _userName = MutableStateFlow(DEFAULT_NAME)
     val userName: StateFlow<String> = _userName.asStateFlow()
 
-    val availableActivities: List<ActivityItem> = MareaContent.activities
-    val allIslandElements: List<IslandElement> = MareaContent.islandElements
-    val questionnaires: List<QuestionnaireDefinition> = MareaContent.questionnaires
+    /** Herramientas de "Para calmarme". */
+    val calmTools: List<ActivityItem> = MareaContent.calmTools
+
+    /** Las 6 actividades significativas del Documento Técnico §6. */
+    val guidedActivities: List<GuidedActivities.Activity> = GuidedActivities.all
 
     /** Solo rutas verificadas, con su marca de favorita. */
     val psychologicalRoutesMedellin: List<PsychologicalRoute>
@@ -96,7 +86,9 @@ class MareaRepository(
             "active_marea", "calm_count", "activities_count", "island_level", "island_stage",
             "island_level_name", "island_progress", "clean_fresh_start_v5", "current_profile_type",
             "family_is_linked", "family_link_code", "family_child_name", "family_parent_name",
-            "family_linked_time", "family_share_tides", "family_share_island", "family_share_activities"
+            "family_linked_time", "family_share_tides", "family_share_island", "family_share_activities",
+            // v1.1: isla por niveles y consulta anónima (retiradas el 7 nov 2026)
+            "unlocked_elements", "seen_elements", "enc_consultations"
         )
         if (legacy.any { prefs.contains(it) }) {
             prefs.edit().apply { legacy.forEach { remove(it) } }.apply()
@@ -116,7 +108,8 @@ class MareaRepository(
                 situation = o.optString("situation", ""),
                 timeOfDay = o.optString("timeOfDay", ""),
                 location = o.optString("location", ""),
-                note = o.optString("note", "")
+                note = o.optString("note", ""),
+                uncertainty = o.optString("uncertainty", "")
             )
         }
         _reflections.value = readEncryptedArray(KEY_REFLECTIONS) { o ->
@@ -125,16 +118,6 @@ class MareaRepository(
                 dateText = o.getString("dateText"),
                 prompt = o.getString("prompt"),
                 text = o.getString("text")
-            )
-        }
-        _consultations.value = readEncryptedArray(KEY_CONSULTATIONS) { o ->
-            AnonymousConsultation(
-                id = o.getString("id"),
-                timestamp = o.getLong("timestamp"),
-                message = o.getString("message"),
-                muniResponse = o.getString("muniResponse"),
-                recommendedRoute = o.getString("recommendedRoute"),
-                isEmergencyFlagged = o.optBoolean("isEmergencyFlagged", false)
             )
         }
         _completions.value = readEncryptedArray(KEY_COMPLETIONS) { o ->
@@ -149,12 +132,18 @@ class MareaRepository(
         _activeMarea.value = readEncrypted(KEY_ACTIVE_MAREA)?.let { runCatching { MareaType.valueOf(it) }.getOrNull() }
 
         val sky = prefs.getString(KEY_SKY, SkyMode.DIA.name) ?: SkyMode.DIA.name
-        updateIsland(
-            unlocked = readSet(KEY_UNLOCKED),
-            seen = readSet(KEY_SEEN),
+        _islandState.value = IslandState(
+            placed = readEncryptedArray(KEY_ISLAND) { o ->
+                PlacedIslandObject(
+                    objectId = o.getString("objectId"),
+                    sourceActivityId = o.getString("sourceActivityId"),
+                    sourceTitle = o.getString("sourceTitle"),
+                    timestamp = o.getLong("timestamp"),
+                    reflection = o.optString("reflection", "")
+                )
+            }.filter { IslandObjects.byId(it.objectId) != null },
             skyMode = runCatching { SkyMode.valueOf(sky) }.getOrDefault(SkyMode.DIA)
         )
-        updateCounters()
         updateWeeklyData()
     }
 
@@ -197,20 +186,20 @@ class MareaRepository(
             .put("timeOfDay", log.timeOfDay)
             .put("location", log.location)
             .put("note", log.note)
+            .put("uncertainty", log.uncertainty)
     }
 
     private fun saveReflections() = writeEncryptedArray(KEY_REFLECTIONS, _reflections.value) { r ->
         JSONObject().put("id", r.id).put("dateText", r.dateText).put("prompt", r.prompt).put("text", r.text)
     }
 
-    private fun saveConsultations() = writeEncryptedArray(KEY_CONSULTATIONS, _consultations.value.take(30)) { c ->
+    private fun saveIsland() = writeEncryptedArray(KEY_ISLAND, _islandState.value.placed) { p ->
         JSONObject()
-            .put("id", c.id)
-            .put("timestamp", c.timestamp)
-            .put("message", c.message)
-            .put("muniResponse", c.muniResponse)
-            .put("recommendedRoute", c.recommendedRoute)
-            .put("isEmergencyFlagged", c.isEmergencyFlagged)
+            .put("objectId", p.objectId)
+            .put("sourceActivityId", p.sourceActivityId)
+            .put("sourceTitle", p.sourceTitle)
+            .put("timestamp", p.timestamp)
+            .put("reflection", p.reflection)
     }
 
     private fun saveCompletions() = writeEncryptedArray(KEY_COMPLETIONS, _completions.value.take(MAX_COMPLETIONS)) { c ->
@@ -246,7 +235,14 @@ class MareaRepository(
     // ---------------------------------------------------------------------------------
 
     /** Guarda un registro. El contexto es opcional: lo que el usuario no eligió queda vacío. */
-    fun recordMarea(type: MareaType, situation: String, timeOfDay: String, location: String, note: String): MareaLogEntry {
+    fun recordMarea(
+        type: MareaType,
+        situation: String,
+        timeOfDay: String,
+        location: String,
+        note: String,
+        uncertainty: String = ""
+    ): MareaLogEntry {
         val entry = MareaLogEntry(
             id = newId(),
             type = type,
@@ -254,7 +250,8 @@ class MareaRepository(
             situation = situation.trim(),
             timeOfDay = timeOfDay.trim(),
             location = location.trim(),
-            note = note.trim()
+            note = note.trim(),
+            uncertainty = if (type == MareaType.NO_SE) uncertainty else ""
         )
         _logs.value = listOf(entry) + _logs.value
         _activeMarea.value = type
@@ -301,29 +298,31 @@ class MareaRepository(
     // Actividades e isla
     // ---------------------------------------------------------------------------------
 
-    /**
-     * Registra una actividad terminada y aplica la regla de la isla.
-     * Devuelve qué acción desbloqueó qué elemento, para explicarlo al usuario.
-     */
-    fun completeActivity(sourceId: String): RewardInfo? {
+    /** Registra que se terminó una actividad o herramienta (solo participación, sin respuestas). */
+    fun recordCompletion(sourceId: String): ActivityCompletion {
         val completion = ActivityCompletion(id = newId(), sourceId = sourceId, timestamp = clock())
         _completions.value = listOf(completion) + _completions.value
         saveCompletions()
-        updateCounters()
+        return completion
+    }
 
-        val outcome = IslandRules.apply(_islandState.value.unlockedElementIds, sourceId)
-        if (outcome.newlyUnlocked) {
-            writeSet(KEY_UNLOCKED, outcome.unlockedAfter)
-            updateIsland(unlocked = outcome.unlockedAfter)
-        }
-        val unlock = outcome.unlock ?: return null
-        return RewardInfo(
-            completionId = completion.id,
-            sourceTitle = unlock.sourceTitle,
-            elementName = unlock.elementName,
-            icon = unlock.icon,
-            newlyUnlocked = outcome.newlyUnlocked
-        )
+    /** Cierre de una herramienta de "Para calmarme". No cambia la isla. */
+    fun completeCalmTool(toolId: String): ClosingInfo {
+        val completion = recordCompletion(toolId)
+        val title = calmTools.firstOrNull { it.id == toolId }?.title ?: "Actividad"
+        return ClosingInfo(completion.id, title)
+    }
+
+    /**
+     * Cierre de una actividad significativa. Devuelve los objetos que el niño puede elegir
+     * para su isla, o null si ya los tiene todos. Elegir es opcional.
+     */
+    fun completeGuidedActivity(activityId: String): IslandOffer? {
+        recordCompletion(activityId)
+        val activity = GuidedActivities.byId(activityId) ?: return null
+        val offers = IslandObjects.offersFor(activity.islandOffers, _islandState.value.placedIds)
+        if (offers.isEmpty()) return null
+        return IslandOffer(activity.id, activity.title, offers.map { it.id })
     }
 
     /** Respuesta opcional "¿te ayudó?" al cerrar una actividad (Documento Técnico §4). */
@@ -332,54 +331,54 @@ class MareaRepository(
         saveCompletions()
     }
 
-    fun markElementSeen(elementId: String) {
-        val seen = _islandState.value.seenElementIds + elementId
-        writeSet(KEY_SEEN, seen)
-        updateIsland(seen = seen)
+    /** El niño elige un objeto de los ofrecidos. Un objeto no ofrecido se rechaza. */
+    fun placeIslandObject(offer: IslandOffer, objectId: String): Boolean {
+        if (objectId !in offer.objectIds || objectId in _islandState.value.placedIds) return false
+        IslandObjects.place(_islandState.value.placedIds, objectId)
+        val placed = PlacedIslandObject(
+            objectId = objectId,
+            sourceActivityId = offer.activityId,
+            sourceTitle = offer.activityTitle,
+            timestamp = clock()
+        )
+        _islandState.value = _islandState.value.copy(placed = _islandState.value.placed + placed)
+        saveIsland()
+        return true
+    }
+
+    /** Reflexión privada y opcional sobre un objeto de la isla. */
+    fun setIslandReflection(objectId: String, text: String) {
+        _islandState.value = _islandState.value.copy(
+            placed = _islandState.value.placed.map { if (it.objectId == objectId) it.copy(reflection = text.trim()) else it }
+        )
+        saveIsland()
     }
 
     fun setIslandSkyMode(skyMode: SkyMode) {
         prefs.edit().putString(KEY_SKY, skyMode.name).apply()
-        updateIsland(skyMode = skyMode)
-    }
-
-    private fun updateIsland(
-        unlocked: Set<String> = _islandState.value.unlockedElementIds,
-        seen: Set<String> = _islandState.value.seenElementIds,
-        skyMode: SkyMode = _islandState.value.skyMode
-    ) {
-        val progress = IslandRules.progress(unlocked)
-        _islandState.value = IslandState(
-            level = progress.level,
-            levelName = progress.levelName,
-            stage = progress.level,
-            progressPercent = progress.percentToNext,
-            skyMode = skyMode,
-            unlockedElementIds = unlocked,
-            seenElementIds = seen
-        )
-    }
-
-    private fun updateCounters() {
-        _calmMomentsCount.value = _completions.value.size
-        _activitiesExploredCount.value = _completions.value.map { it.sourceId }.distinct().size
+        _islandState.value = _islandState.value.copy(skyMode = skyMode)
     }
 
     // ---------------------------------------------------------------------------------
     // Reflexiones y diario
     // ---------------------------------------------------------------------------------
 
-    /** Reflexión semanal ("Un momento para ti"): desbloquea el Muelle del Horizonte. */
-    fun addReflection(text: String): RewardInfo? {
-        if (text.isBlank()) return null
+    /** Reflexión semanal ("Un momento para ti"). Privada; no cambia la isla. */
+    fun addReflection(text: String) {
+        if (text.isBlank()) return
         addEntry(WEEKLY_PROMPT, text)
-        return completeActivity(SOURCE_WEEKLY_REFLECTION)
     }
 
     /** Entrada del Diario del Mar. Se guarda cifrada y se puede borrar. */
     fun addDiaryEntry(prompt: String, text: String) {
         if (text.isBlank()) return
         addEntry("Diario del Mar · $prompt", text)
+    }
+
+    /** Guarda en el diario lo de una actividad significativa, SOLO si el niño lo elige. */
+    fun saveActivityToDiary(activityTitle: String, text: String) {
+        if (text.isBlank()) return
+        addEntry(activityTitle, text)
     }
 
     private fun addEntry(prompt: String, text: String) {
@@ -395,7 +394,7 @@ class MareaRepository(
     }
 
     // ---------------------------------------------------------------------------------
-    // Rutas, autoevaluación y consulta anónima
+    // Rutas y nombre
     // ---------------------------------------------------------------------------------
 
     fun toggleFavoriteRoute(routeId: String) {
@@ -411,87 +410,9 @@ class MareaRepository(
         prefs.edit().putString(KEY_USER_NAME, clean).apply()
     }
 
-    /**
-     * Autoevaluación preliminar NO clínica (decisión 4): sin puntaje ni nivel.
-     * Las respuestas solo ordenan las sugerencias; las rutas de apoyo siempre se incluyen.
-     */
-    fun evaluateQuestionnaire(questionnaireId: String, selectedOptions: Map<Int, Int>): SelfCheckResult {
-        val definition = questionnaires.find { it.id == questionnaireId } ?: questionnaires.first()
-        val weights = selectedOptions.mapNotNull { (qIdx, optIdx) ->
-            definition.questions.getOrNull(qIdx)?.options?.getOrNull(optIdx)?.score
-        }
-        val focus = SelfCheckGuidance.focus(weights)
-        val alwaysRoutes = listOf("route_linea_amiga", "route_linea_106")
-        return when (focus) {
-            SelfCheckGuidance.Focus.BUSCAR_APOYO -> SelfCheckResult(
-                questionnaireId = definition.id,
-                title = definition.title,
-                focus = focus,
-                message = "Gracias por responder con sinceridad. Parece que estás cargando bastante en ${definition.title.lowercase()}. No tienes que hacerlo en soledad: hablar pronto con alguien puede ayudarte.",
-                suggestions = listOf(
-                    "Cuéntale a un adulto de confianza cómo te has sentido (familia, docente u orientador/a).",
-                    "Llama gratis a la Línea 106 o a la Línea Amiga (604 444 44 48), a cualquier hora.",
-                    "Si estás en peligro ahora mismo, llama al 123.",
-                    "Mientras tanto, la Respiración del Océano puede ayudarte a bajar el ritmo."
-                ),
-                suggestedRouteIds = alwaysRoutes + "route_linea_123"
-            )
-            SelfCheckGuidance.Focus.CONVERSAR -> SelfCheckResult(
-                questionnaireId = definition.id,
-                title = definition.title,
-                focus = focus,
-                message = "Gracias por responder. Hay cosas en ${definition.title.lowercase()} que vale la pena mirar con calma y, si quieres, conversar con alguien.",
-                suggestions = listOf(
-                    "Conversa con un amigo/a o un adulto de confianza sobre cómo te has sentido.",
-                    "Escribe en el Diario del Mar para ordenar lo que piensas.",
-                    "Si el oleaje aumenta, la Línea 106 y los Escuchaderos están disponibles."
-                ),
-                suggestedRouteIds = alwaysRoutes
-            )
-            SelfCheckGuidance.Focus.CUIDADO_COTIDIANO -> SelfCheckResult(
-                questionnaireId = definition.id,
-                title = definition.title,
-                focus = focus,
-                message = "Gracias por responder. Sigue cuidando los momentos que te hacen bien en ${definition.title.lowercase()}.",
-                suggestions = listOf(
-                    "Elige una actividad de autocuidado cuando la necesites.",
-                    "Escribe tu reflexión semanal para notar qué te ayuda.",
-                    "Si algo cambia, las rutas de apoyo siguen aquí."
-                ),
-                suggestedRouteIds = alwaysRoutes
-            )
-        }
-    }
-
-    /**
-     * Consulta anónima: es una DEMOSTRACIÓN (decisión 5). Nadie lee estos mensajes;
-     * se guardan cifrados solo en el teléfono y Muni responde con un texto fijo que
-     * siempre incluye las líneas de apoyo.
-     */
-    fun submitAnonymousConsultation(message: String): AnonymousConsultation {
-        val isRisk = SafetyRules.mentionsRisk(message)
-        val response = if (isRisk) {
-            "Gracias por contarlo. Lo que describes es importante y mereces ayuda ahora: llama gratis a la Línea 106 o a la Línea Amiga (604 444 44 48), a cualquier hora, o busca a un adulto de confianza. Si estás en peligro en este momento, llama al 123. Recuerda: este espacio es una demostración y ninguna persona lee estos mensajes."
-        } else {
-            "Gracias por expresar lo que sientes. Poner en palabras tus emociones ayuda a ordenarlas. Recuerda que este espacio es una demostración: ninguna persona lee estos mensajes. Si quieres hablar con alguien, la Línea 106 y la Línea Amiga (604 444 44 48) atienden gratis las 24 horas."
-        }
-        val item = AnonymousConsultation(
-            id = newId(),
-            timestamp = clock(),
-            message = message,
-            muniResponse = response,
-            recommendedRoute = "Línea 106 · Línea Amiga (604) 444 44 48 · Emergencias 123",
-            isEmergencyFlagged = isRisk
-        )
-        _consultations.value = listOf(item) + _consultations.value
-        saveConsultations()
-        return item
-    }
-
     companion object {
         const val PREFS_NAME = "marea_club_prefs"
         const val DEFAULT_NAME = "Navegante"
-        const val SOURCE_WEEKLY_REFLECTION = "reflexion_semanal"
         const val WEEKLY_PROMPT = "¿Qué descubriste sobre tus emociones esta semana?"
         private const val MAX_LOGS = 200
         private const val MAX_COMPLETIONS = 300
@@ -499,12 +420,10 @@ class MareaRepository(
         private const val KEY_ONBOARDED = "is_onboarded"
         private const val KEY_USER_NAME = "user_name"
         private const val KEY_FAVORITES = "favorite_routes"
-        private const val KEY_UNLOCKED = "unlocked_elements"
-        private const val KEY_SEEN = "seen_elements"
+        private const val KEY_ISLAND = "enc_island_objects"
         private const val KEY_SKY = "island_sky_mode"
         private const val KEY_LOGS = "enc_logs"
         private const val KEY_REFLECTIONS = "enc_reflections"
-        private const val KEY_CONSULTATIONS = "enc_consultations"
         private const val KEY_COMPLETIONS = "enc_completions"
         private const val KEY_ACTIVE_MAREA = "enc_active_marea"
     }

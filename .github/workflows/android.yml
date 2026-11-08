@@ -2,7 +2,7 @@ name: Compilar y probar
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'entrega-*']
   pull_request:
   workflow_dispatch:
 
@@ -52,7 +52,7 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
 
       - name: Publicar capturas de pantalla en la rama screenshots
-        if: always() && github.ref == 'refs/heads/main'
+        if: always() && github.event_name == 'push'
         run: |
           if [ -d app/build/screenshots ] && [ -n "$(ls -A app/build/screenshots)" ]; then
             mkdir -p /tmp/shots && cp app/build/screenshots/*.png /tmp/shots/

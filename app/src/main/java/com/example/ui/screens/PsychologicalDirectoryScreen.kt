@@ -43,8 +43,6 @@ fun PsychologicalDirectoryScreen(
     favoriteIds: Set<String>,
     onToggleFavorite: (String) -> Unit,
     onBack: () -> Unit,
-    onOpenSelfEvaluation: () -> Unit,
-    onOpenAnonymousConsultation: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -126,48 +124,6 @@ fun PsychologicalDirectoryScreen(
             item {
                 Spacer(modifier = Modifier.height(4.dp))
                 LineaAmigaHeroCard(context = context)
-            }
-
-            // Quick secondary tools (Self-evaluation & anonymous consultation)
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onOpenSelfEvaluation,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
-                        border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(MareaTealBar)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(46.dp)
-                            .testTag("dir_to_self_eval")
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("📋", fontSize = 14.sp)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Autoevaluación", fontFamily = SnigletFontFamily, fontSize = 12.sp, color = MareaDeepBlue)
-                        }
-                    }
-
-                    OutlinedButton(
-                        onClick = onOpenAnonymousConsultation,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(containerColor = Color.White),
-                        border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(MareaTealBar)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(46.dp)
-                            .testTag("dir_to_anonymous")
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("💬", fontSize = 14.sp)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Consulta Anónima", fontFamily = SnigletFontFamily, fontSize = 12.sp, color = MareaDeepBlue)
-                        }
-                    }
-                }
             }
 
             // Search bar

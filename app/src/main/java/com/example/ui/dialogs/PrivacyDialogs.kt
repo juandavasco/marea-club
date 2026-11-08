@@ -66,7 +66,7 @@ fun ResetDataDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
         text = {
             Column {
                 Text(
-                    "Se borrarán tus mareas, notas, diario, reflexiones, consultas y el progreso de tu isla. La app quedará como recién instalada.",
+                    "Se borrarán tus mareas, notas, diario, reflexiones y los objetos de tu isla. La app quedará como recién instalada.",
                     fontFamily = NunitoFontFamily,
                     fontSize = 13.sp
                 )

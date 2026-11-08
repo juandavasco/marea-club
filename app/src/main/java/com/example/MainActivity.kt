@@ -12,22 +12,25 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.*
 import com.example.ui.MareaViewModel
 import com.example.ui.components.MareaBottomBar
+import com.example.ui.components.MareaHeader
+import com.example.ui.components.MareaSegmented
+import com.example.ui.components.MareaSpace
 import com.example.ui.components.MareaTopBar
 import com.example.ui.dialogs.*
 import com.example.ui.screens.*
 import com.example.ui.theme.MareaBackground
 import com.example.ui.theme.MareaClubTheme
 
+/** Pantallas que se abren encima de las pestañas. */
 enum class SubScreen {
-    MAREA_SELECTION,
-    DIRECTORY,
-    SELF_EVALUATION,
-    ANONYMOUS_CONSULTATION
+    SALVAVIDAS,
+    DIRECTORY
 }
 
 class MainActivity : ComponentActivity() {
@@ -48,44 +51,53 @@ class MainActivity : ComponentActivity() {
 fun MareaClubApp(viewModel: MareaViewModel) {
     val isOnboarded by viewModel.isOnboarded.collectAsStateWithLifecycle()
     var forceShowWelcome by remember { mutableStateOf(false) }
-
     var activeSubScreen by remember { mutableStateOf<SubScreen?>(null) }
+    /** 0 = Registrar, 1 = Mi semana (dentro de la pestaña Mareas). */
+    var mareaSegment by rememberSaveable { mutableIntStateOf(0) }
+    /** "NO_SE" o "SIN_PALABRA" cuando el niño eligió No sé; se guarda junto con el registro. */
+    var pendingUncertainty by remember { mutableStateOf("") }
 
     val currentTab by viewModel.currentTab.collectAsStateWithLifecycle()
     val activeMarea by viewModel.activeMarea.collectAsStateWithLifecycle()
     val islandState by viewModel.islandState.collectAsStateWithLifecycle()
     val logs by viewModel.logs.collectAsStateWithLifecycle()
     val weeklyOverview by viewModel.weeklyOverview.collectAsStateWithLifecycle()
-    val calmMomentsCount by viewModel.calmMomentsCount.collectAsStateWithLifecycle()
-    val activitiesExploredCount by viewModel.activitiesExploredCount.collectAsStateWithLifecycle()
-    val activeActivity by viewModel.activeActivity.collectAsStateWithLifecycle()
-    val earnedReward by viewModel.earnedReward.collectAsStateWithLifecycle()
-
+    val weekHasEnoughData by viewModel.weekHasEnoughData.collectAsStateWithLifecycle()
+    val reflections by viewModel.reflections.collectAsStateWithLifecycle()
+    val completions by viewModel.completions.collectAsStateWithLifecycle()
     val userName by viewModel.userName.collectAsStateWithLifecycle()
     val favoriteRouteIds by viewModel.favoriteRouteIds.collectAsStateWithLifecycle()
-    val consultations by viewModel.consultations.collectAsStateWithLifecycle()
-    val reflections by viewModel.reflections.collectAsStateWithLifecycle()
+
+    val activeTool by viewModel.activeTool.collectAsStateWithLifecycle()
+    val activeGuided by viewModel.activeGuided.collectAsStateWithLifecycle()
+    val closing by viewModel.closing.collectAsStateWithLifecycle()
+    val islandOffer by viewModel.islandOffer.collectAsStateWithLifecycle()
 
     val showReflectionDialog by viewModel.showReflectionDialog.collectAsStateWithLifecycle()
-    val showCustomizationDialog by viewModel.showCustomizationDialog.collectAsStateWithLifecycle()
     val showMenuDialog by viewModel.showMenuDialog.collectAsStateWithLifecycle()
     val showArchivoCorrientes by viewModel.showArchivoCorrientes.collectAsStateWithLifecycle()
-    val weekHasEnoughData by viewModel.weekHasEnoughData.collectAsStateWithLifecycle()
     var showPrivacyDialog by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
 
-    // Screen dynamic background color
+    // Sugerencia de inicio: la primera actividad aún no explorada (o la primera si ya exploró todas).
+    val explored = completions.map { it.sourceId }.toSet()
+    val suggested = viewModel.guidedActivities.firstOrNull { it.id !in explored } ?: viewModel.guidedActivities.first()
+
     val currentBgColor by animateColorAsState(
-        targetValue = activeMarea?.backgroundColor ?: MareaBackground,
+        targetValue = if (currentTab == BottomNavTab.MAREA) activeMarea?.backgroundColor ?: MareaBackground else MareaBackground,
         animationSpec = tween(600),
         label = "app_bg_anim"
     )
 
-    // Handle back button
-    BackHandler(enabled = activeSubScreen != null || activeActivity != null || currentTab != BottomNavTab.HOME || forceShowWelcome) {
+    BackHandler(
+        enabled = forceShowWelcome || activeGuided != null || activeTool != null ||
+            activeSubScreen != null || currentTab != BottomNavTab.HOME
+    ) {
         when {
             forceShowWelcome -> forceShowWelcome = false
-            activeActivity != null -> viewModel.closeActiveActivity()
+            activeGuided != null -> viewModel.closeGuided()
+            activeTool != null -> viewModel.closeTool()
+            activeSubScreen == SubScreen.DIRECTORY -> activeSubScreen = SubScreen.SALVAVIDAS
             activeSubScreen != null -> activeSubScreen = null
             currentTab != BottomNavTab.HOME -> viewModel.selectTab(BottomNavTab.HOME)
         }
@@ -101,69 +113,54 @@ fun MareaClubApp(viewModel: MareaViewModel) {
         return
     }
 
-    // Active interactive activity takes priority
-    if (activeActivity != null) {
-        val running = activeActivity!!
-        ActivityRunnerScreen(
-            activity = running,
-            onClose = { viewModel.closeActiveActivity() },
-            onComplete = { viewModel.completeCurrentActivity(running) },
-            onSaveDiary = { prompt, text -> viewModel.saveDiaryEntry(prompt, text) }
+    // 1. Actividad con propósito en curso
+    activeGuided?.let { activity ->
+        GuidedActivityScreen(
+            activity = activity,
+            onClose = { viewModel.closeGuided() },
+            onFinish = { diaryText -> viewModel.finishGuided(activity, diaryText) },
+            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing)
         )
         return
     }
 
-    // Active sub-screen takes full focus
+    // 2. Herramienta de "Para calmarme" en curso
+    activeTool?.let { tool ->
+        ActivityRunnerScreen(
+            activity = tool,
+            onClose = { viewModel.closeTool() },
+            onComplete = { viewModel.completeTool(tool) },
+            onSaveDiary = { prompt, text -> viewModel.saveDiaryEntry(prompt, text) },
+            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing)
+        )
+        return
+    }
+
+    // 3. Pantallas secundarias
     when (activeSubScreen) {
-        SubScreen.MAREA_SELECTION -> {
-            MareaSelectionScreen(
-                currentMarea = activeMarea,
-                availableActivities = viewModel.availableActivities,
-                onSaveMarea = { marea, sit, time, loc, note ->
-                    viewModel.logMarea(marea, sit, time, loc, note)
-                },
-                onLaunchActivity = { viewModel.openActivity(it) },
+        SubScreen.SALVAVIDAS -> {
+            SalvavidasScreen(
+                // Entrega 3–4: vínculo real con Firebase. Hasta entonces no hay adulto vinculado.
+                onRequestCompanion = null,
+                onOpenAllLines = { activeSubScreen = SubScreen.DIRECTORY },
                 onBack = { activeSubScreen = null },
-                onOpenSupportDirectory = { activeSubScreen = SubScreen.DIRECTORY }
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MareaBackground)
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
             )
             return
         }
-
         SubScreen.DIRECTORY -> {
             PsychologicalDirectoryScreen(
                 routes = viewModel.psychologicalRoutes,
                 favoriteIds = favoriteRouteIds,
                 onToggleFavorite = { viewModel.toggleFavoriteRoute(it) },
-                onBack = { activeSubScreen = null },
-                onOpenSelfEvaluation = { activeSubScreen = SubScreen.SELF_EVALUATION },
-                onOpenAnonymousConsultation = { activeSubScreen = SubScreen.ANONYMOUS_CONSULTATION }
+                onBack = { activeSubScreen = SubScreen.SALVAVIDAS }
             )
             return
         }
-
-        SubScreen.SELF_EVALUATION -> {
-            SelfEvaluationScreen(
-                questionnaires = viewModel.questionnaires,
-                onEvaluate = { qId, answers -> viewModel.evaluateQuestionnaire(qId, answers) },
-                onBack = { activeSubScreen = null },
-                onOpenSupportDirectory = { activeSubScreen = SubScreen.DIRECTORY }
-            )
-            return
-        }
-
-        SubScreen.ANONYMOUS_CONSULTATION -> {
-            AnonymousConsultationScreen(
-                consultations = consultations,
-                onSubmitConsultation = { msg -> viewModel.sendAnonymousConsultation(msg) },
-                onBack = { activeSubScreen = null },
-                onOpenSupportDirectory = { activeSubScreen = SubScreen.DIRECTORY }
-            )
-            return
-        }
-
-        null -> {
-            // Normal dashboard scaffold
-        }
+        null -> Unit
     }
 
     Scaffold(
@@ -172,11 +169,7 @@ fun MareaClubApp(viewModel: MareaViewModel) {
             .background(currentBgColor),
         containerColor = currentBgColor,
         contentWindowInsets = WindowInsets.safeDrawing,
-        topBar = {
-            MareaTopBar(
-                onMenuClick = { viewModel.setMenuDialogVisible(true) }
-            )
-        },
+        topBar = { MareaTopBar(onMenuClick = { viewModel.setMenuDialogVisible(true) }) },
         bottomBar = {
             MareaBottomBar(
                 currentTab = currentTab,
@@ -191,89 +184,86 @@ fun MareaClubApp(viewModel: MareaViewModel) {
                 .background(currentBgColor)
         ) {
             when (currentTab) {
-                BottomNavTab.HOME -> {
-                    MareasHomeScreen(
-                        userName = userName,
-                        activeMarea = activeMarea,
-                        islandState = islandState,
-                        availableActivities = viewModel.availableActivities,
-                        weeklyOverview = weeklyOverview,
-                        calmMomentsCount = calmMomentsCount,
-                        onNavigateToMareaSelection = { viewModel.selectTab(BottomNavTab.MAREA) },
-                        onNavigateToIsland = { viewModel.selectTab(BottomNavTab.ISLAND) },
-                        onNavigateToActivities = { viewModel.selectTab(BottomNavTab.BURBUJA) },
-                        onNavigateToProgress = { viewModel.selectTab(BottomNavTab.PROGRESS) },
-                        onOpenActivity = { viewModel.openActivity(it) },
-                        onOpenSupportDirectory = { activeSubScreen = SubScreen.DIRECTORY },
-                        onOpenSelfEvaluation = { activeSubScreen = SubScreen.SELF_EVALUATION },
-                        onOpenAnonymousConsultation = { activeSubScreen = SubScreen.ANONYMOUS_CONSULTATION },
-                        onOpenMenu = { viewModel.setMenuDialogVisible(true) }
-                    )
-                }
+                BottomNavTab.HOME -> HomeScreen(
+                    userName = userName,
+                    logs = logs,
+                    suggested = suggested,
+                    onRegisterMarea = {
+                        mareaSegment = 0
+                        viewModel.selectTab(BottomNavTab.MAREA)
+                    },
+                    onOpenSuggested = { viewModel.openGuided(suggested) },
+                    onOpenSalvavidas = { activeSubScreen = SubScreen.SALVAVIDAS }
+                )
 
                 BottomNavTab.MAREA -> {
-                    MareaSelectionScreen(
-                        currentMarea = activeMarea,
-                        availableActivities = viewModel.availableActivities,
-                        onSaveMarea = { marea, sit, time, loc, note ->
-                            viewModel.logMarea(marea, sit, time, loc, note)
-                        },
-                        onLaunchActivity = { viewModel.openActivity(it) },
-                        onBack = { viewModel.selectTab(BottomNavTab.HOME) },
-                        onOpenSupportDirectory = { activeSubScreen = SubScreen.DIRECTORY }
-                    )
+                    val header: @Composable () -> Unit = {
+                        Column {
+                            MareaHeader(
+                                title = "Mareas",
+                                subtitle = if (mareaSegment == 0) "¿Cómo viene tu marea ahora?" else "Cómo se movieron tus mareas estos días."
+                            )
+                            MareaSegmented(
+                                options = listOf("Registrar", "Mi semana"),
+                                selectedIndex = mareaSegment,
+                                onSelect = { mareaSegment = it },
+                                tags = listOf("marea_segment_register", "marea_segment_week"),
+                                modifier = Modifier.padding(bottom = MareaSpace.l)
+                            )
+                        }
+                    }
+                    if (mareaSegment == 0) {
+                        MareaSelectionScreen(
+                            currentMarea = activeMarea,
+                            availableActivities = viewModel.calmTools,
+                            onSaveMarea = { marea, sit, time, loc, note ->
+                                viewModel.logMarea(marea, sit, time, loc, note, pendingUncertainty)
+                                pendingUncertainty = ""
+                            },
+                            onLaunchActivity = { viewModel.openTool(it) },
+                            onBack = { viewModel.selectTab(BottomNavTab.HOME) },
+                            onOpenSupportDirectory = { activeSubScreen = SubScreen.SALVAVIDAS },
+                            headerContent = header,
+                            onSaveUncertainty = { pendingUncertainty = it }
+                        )
+                    } else {
+                        MiSemanaScreen(
+                            weeklyOverview = weeklyOverview,
+                            logs = logs,
+                            reflections = reflections,
+                            onOpenReflection = { viewModel.setReflectionDialogVisible(true) },
+                            weekHasEnoughData = weekHasEnoughData,
+                            onDeleteReflection = { viewModel.deleteReflection(it) },
+                            headerContent = header
+                        )
+                    }
                 }
 
-                BottomNavTab.ISLAND -> {
-                    IslandScreen(
-                        islandState = islandState,
-                        allIslandElements = viewModel.allIslandElements,
-                        onNavigateToActivities = { viewModel.selectTab(BottomNavTab.BURBUJA) },
-                        onOpenCustomization = { viewModel.setCustomizationDialogVisible(true) },
-                        onElementOpened = { viewModel.markElementSeen(it) },
-                        onNavigateToProgress = { viewModel.selectTab(BottomNavTab.PROGRESS) }
-                    )
-                }
+                BottomNavTab.ACTIVIDADES -> ActivitiesScreen(
+                    guided = viewModel.guidedActivities,
+                    calmTools = viewModel.calmTools,
+                    completions = completions,
+                    onOpenGuided = { viewModel.openGuided(it) },
+                    onOpenTool = { viewModel.openTool(it) }
+                )
 
-                BottomNavTab.BURBUJA -> {
-                    BurbujaScreen(
-                        availableActivities = viewModel.availableActivities,
-                        onOpenActivity = { viewModel.openActivity(it) },
-                        onActivityCompleted = { viewModel.completeTool(it) }
-                    )
-                }
-
-                BottomNavTab.PROGRESS -> {
-                    ProgressScreen(
-                        weeklyOverview = weeklyOverview,
-                        calmMomentsCount = calmMomentsCount,
-                        activitiesExploredCount = activitiesExploredCount,
-                        logs = logs,
-                        reflections = reflections,
-                        availableActivities = viewModel.availableActivities,
-                        onOpenReflection = { viewModel.setReflectionDialogVisible(true) },
-                        onOpenActivity = { viewModel.openActivity(it) },
-                        weekHasEnoughData = weekHasEnoughData,
-                        onDeleteReflection = { viewModel.deleteReflection(it) }
-                    )
-                }
+                BottomNavTab.ISLAND -> IslandScreen(
+                    islandState = islandState,
+                    onSaveReflection = { id, text -> viewModel.setIslandReflection(id, text) },
+                    onSkyMode = { viewModel.changeSkyMode(it) }
+                )
             }
         }
     }
 
-    // Reward Celebration Dialog
-    earnedReward?.let { reward ->
-        RewardCelebrationDialog(
-            reward = reward,
-            onDismiss = { feedback -> viewModel.dismissRewardDialog(feedback) },
-            onGoToIsland = { feedback ->
-                viewModel.dismissRewardDialog(feedback)
-                viewModel.selectTab(BottomNavTab.ISLAND)
-            }
-        )
+    // Diálogos posteriores a una actividad
+    islandOffer?.let { offer ->
+        IslandOfferDialog(offer = offer, onChoose = { viewModel.chooseIslandObject(it) })
+    }
+    closing?.let { info ->
+        ClosingDialog(info = info, onDone = { viewModel.dismissClosing(it) })
     }
 
-    // Modal dialogs
     if (showReflectionDialog) {
         ReflectionDialog(
             onDismiss = { viewModel.setReflectionDialogVisible(false) },
@@ -281,21 +271,11 @@ fun MareaClubApp(viewModel: MareaViewModel) {
         )
     }
 
-    if (showCustomizationDialog) {
-        IslandCustomizationDialog(
-            islandState = islandState,
-            onDismiss = { viewModel.setCustomizationDialogVisible(false) },
-            onSkyModeSelected = { viewModel.changeSkyMode(it) }
-        )
-    }
-
     if (showMenuDialog) {
         MenuDotsDialog(
             onDismiss = { viewModel.setMenuDialogVisible(false) },
             onOpenArchivo = { viewModel.setArchivoCorrientesVisible(true) },
-            onOpenSupport = { activeSubScreen = SubScreen.DIRECTORY },
-            onOpenSelfEvaluation = { activeSubScreen = SubScreen.SELF_EVALUATION },
-            onOpenAnonymousConsultation = { activeSubScreen = SubScreen.ANONYMOUS_CONSULTATION },
+            onOpenSupport = { activeSubScreen = SubScreen.SALVAVIDAS },
             onReplayWelcome = { forceShowWelcome = true },
             onOpenPrivacy = { showPrivacyDialog = true },
             onResetData = { showResetDialog = true }
@@ -311,6 +291,7 @@ fun MareaClubApp(viewModel: MareaViewModel) {
             onConfirm = {
                 showResetDialog = false
                 activeSubScreen = null
+                mareaSegment = 0
                 viewModel.resetAllData()
             },
             onDismiss = { showResetDialog = false }

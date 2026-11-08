@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import com.example.MareaClubApp
 import com.example.data.MareaRepository
+import com.example.model.MareaType
 import com.example.ui.theme.MareaClubTheme
 import org.junit.Before
 import org.junit.Rule
@@ -17,7 +18,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Los 8 casos de la tabla de pruebas del Documento Técnico §17, de punta a punta en la interfaz.
+ * Casos de prueba del Documento Técnico §17 y del Prompt Maestro (entregas 1 y 2), de punta a punta.
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -39,10 +40,12 @@ class AppFlowsTest {
 
     private fun tag(t: String) = compose.onNodeWithTag(t, useUnmergedTree = true)
 
-    private fun startApp() {
-        tag("welcome_start_button").performScrollTo().performClick()
+    private fun click(t: String) {
+        tag(t).performScrollTo().performClick()
         compose.waitForIdle()
     }
+
+    private fun startApp() = click("welcome_start_button")
 
     private fun goToMareas() {
         tag("tab_marea").performClick()
@@ -50,9 +53,19 @@ class AppFlowsTest {
     }
 
     private fun saveTide(tide: String) {
-        tag("tide_card_$tide").performScrollTo().performClick()
-        tag("save_marea_screen_btn").performScrollTo().performClick()
-        compose.waitForIdle()
+        click("tide_card_$tide")
+        click("save_marea_screen_btn")
+    }
+
+    /** Recorre "Mi mapa de situaciones" hasta la conclusión. */
+    private fun runMapaDeSituaciones() {
+        click("guided_start")
+        click("option_examen"); click("guided_next")
+        click("guided_skip") // ¿Dónde? es opcional
+        click("option_ALTA"); click("guided_next")
+        click("option_hablo"); click("guided_next")
+        tag("summary_card").assertExists()
+        click("guided_next")
     }
 
     @Test
@@ -62,9 +75,19 @@ class AppFlowsTest {
     }
 
     @Test
+    fun `navegacion - las cuatro pestanas del nino abren su pantalla`() {
+        startApp()
+        tag("home_register_marea").assertExists()
+        tag("tab_marea").performClick(); tag("marea_choose_hint").assertExists()
+        tag("tab_activities").performClick(); tag("guided_act_mapa_situaciones").assertExists()
+        tag("tab_island").performClick(); tag("island_scene").assertExists()
+        tag("tab_home").performClick(); tag("home_salvavidas").assertExists()
+    }
+
+    @Test
     fun `17-1 registro de marea guardado y reflejado en el historial`() {
         startApp()
-        goToMareas()
+        click("home_register_marea")
         tag("marea_choose_hint").assertExists()
         saveTide("movida")
         tag("save_marea_screen_btn").assertIsNotEnabled()
@@ -75,93 +98,123 @@ class AppFlowsTest {
     }
 
     @Test
-    fun `17-2 opcion de incertidumbre permite continuar sin marea concreta ni contexto`() {
+    fun `17-2 No se permite decir que no encuentra una emocion sin contexto`() {
         startApp()
         goToMareas()
-        saveTide("no_se")
+        click("tide_card_no_se")
+        click("uncertainty_sin_palabra")
+        click("save_marea_screen_btn")
         compose.onAllNodesWithText("Marea guardada en tu registro").onFirst().assertExists()
-        assert(viewModel.logs.value.single().situation.isEmpty())
+        val log = viewModel.logs.value.single()
+        assert(log.type == MareaType.NO_SE)
+        assert(log.uncertainty == "SIN_PALABRA")
+        assert(log.situation.isEmpty())
     }
 
     @Test
-    fun `fila 5 - tormenta muestra rutas de apoyo y adulto de confianza`() {
+    fun `fila 5 - tormenta muestra apoyo y lleva a Mis salvavidas`() {
         startApp()
         goToMareas()
-        tag("tide_card_tranquila").performScrollTo().performClick()
+        click("tide_card_tranquila")
         tag("tide_support_card").assertDoesNotExist()
-        tag("tide_card_tormenta").performScrollTo().performClick()
+        click("tide_card_tormenta")
         tag("tide_support_card").assertExists()
-        tag("tide_support_open_directory").performScrollTo().performClick()
-        compose.onAllNodesWithText("Línea Amiga Saludable", substring = true).onFirst().assertExists()
+        click("tide_support_open_directory")
+        tag("salvavidas_call_106").assertExists().assertHasClickAction()
     }
 
     @Test
-    fun `17-3 actividad - salir sin penalizacion y retomar`() {
-        startApp()
-        tag("home_activity_act_diario").performScrollTo().performClick()
-        tag("close_activity_button").performClick()
-        compose.waitForIdle()
-        assert(viewModel.calmMomentsCount.value == 0)
-        tag("home_activity_act_diario").performScrollTo().performClick()
-        tag("sea_diary_input").assertExists()
-    }
-
-    @Test
-    fun `17-4 progreso de isla - el cambio se relaciona con una actividad identificable`() {
-        startApp()
-        tag("home_activity_act_diario").performScrollTo().performClick()
-        tag("sea_diary_input").performTextInput("Hoy me sentí en paz en el parque")
-        tag("complete_diary_button").performScrollTo().performClick()
-        tag("reward_dialog").assertExists()
-        compose.onNodeWithText("Apareció en tu isla porque completaste «Diario del Mar».").assertExists()
-        tag("feedback_ayudo").performClick()
-        tag("go_to_island_reward_button").performClick()
-        compose.waitForIdle()
-        assert("sofa_azul" in viewModel.islandState.value.unlockedElementIds)
-        assert(viewModel.repository.completions.value.first().feedback?.name == "AYUDO")
-        // El diario quedó guardado
-        assert(viewModel.reflections.value.single().text.contains("parque"))
-    }
-
-    @Test
-    fun `17-5 exploracion - los elementos abren detalle y permiten regresar`() {
-        startApp()
-        viewModel.repository.completeActivity("act_respiracion")
-        tag("tab_island").performClick()
-        tag("island_element_flores_coral").performScrollTo().performClick()
-        compose.onNodeWithText("Apareció en tu isla porque completaste «Respiración del Océano».").assertExists()
-        tag("island_element_back_button").performClick()
-        tag("island_element_back_button").assertDoesNotExist()
-        // Al abrirlo deja de ser "Nuevo"
-        assert("flores_coral" in viewModel.islandState.value.seenElementIds)
-    }
-
-    @Test
-    fun `17-6 resumen semanal coincide con registros y senala datos insuficientes`() {
+    fun `mi semana vive dentro de Mareas y senala datos insuficientes`() {
         startApp()
         goToMareas()
         saveTide("alta")
-        tag("tab_progress").performClick()
+        click("marea_segment_week")
+        tag("weekly_chart_card").assertExists()
         tag("week_low_data_text").performScrollTo().assertExists()
         compose.onNodeWithText("Hay pocos datos esta semana (1 de 3 registros)", substring = true).assertExists()
     }
 
     @Test
-    fun `17-7 navegacion - cada pestana abre su pantalla`() {
+    fun `17-3 herramienta para calmarme - salir sin penalizacion y retomar`() {
         startApp()
-        tag("tab_marea").performClick(); tag("marea_choose_hint").assertExists()
-        tag("tab_island").performClick(); tag("island_interactive_viewport").assertExists()
-        tag("tab_progress").performClick(); tag("weekly_chart_card").assertExists()
-        tag("tab_home").performClick(); tag("marea_hub_card").assertExists()
+        tag("tab_activities").performClick()
+        click("tool_act_diario")
+        tag("close_activity_button").performClick()
+        compose.waitForIdle()
+        assert(viewModel.completions.value.isEmpty())
+        click("tool_act_diario")
+        tag("sea_diary_input").assertExists()
     }
 
     @Test
-    fun `17-7 consulta anonima se identifica como demostracion con ayuda a un toque`() {
+    fun `herramienta para calmarme - termina con te ayudo y no cambia la isla`() {
         startApp()
-        tag("menu_dots_button").performClick()
-        tag("menu_anonymous_button").performClick()
-        tag("anonymous_demo_banner").assertExists()
-        tag("anonymous_call_106").assertExists().assertHasClickAction()
+        tag("tab_activities").performClick()
+        click("tool_act_diario")
+        tag("sea_diary_input").performTextInput("Hoy me sentí en paz en el parque")
+        click("complete_diary_button")
+        tag("closing_dialog").assertExists()
+        tag("feedback_ayudo").performClick()
+        compose.waitForIdle()
+        assert(viewModel.completions.value.first().feedback?.name == "AYUDO")
+        assert(viewModel.islandState.value.placed.isEmpty())
+        assert(viewModel.reflections.value.single().text.contains("parque"))
+    }
+
+    @Test
+    fun `17-4 actividad con proposito - elegir un objeto y verlo en la isla con su origen`() {
+        startApp()
+        tag("tab_activities").performClick()
+        click("guided_act_mapa_situaciones")
+        runMapaDeSituaciones()
+        click("guided_finish")
+        tag("island_offer_dialog").assertExists()
+        tag("offer_confirm").assertIsNotEnabled()
+        tag("offer_faro").performClick()
+        tag("offer_confirm").performClick()
+        compose.waitForIdle()
+        assert(viewModel.islandState.value.placed.single().objectId == "faro")
+        // La respuesta no se guarda en el diario si el niño no lo eligió
+        assert(viewModel.reflections.value.isEmpty())
+        tag("tab_island").performClick()
+        click("island_row_faro")
+        tag("island_object_origin").assertTextContains("Mi mapa de situaciones", substring = true)
+    }
+
+    @Test
+    fun `actividad con proposito - ahora no deja la isla igual y guardar en diario es opcional`() {
+        startApp()
+        tag("tab_activities").performClick()
+        click("guided_act_mapa_situaciones")
+        runMapaDeSituaciones()
+        click("guided_save_diary")
+        click("guided_finish")
+        click("offer_skip")
+        assert(viewModel.islandState.value.placed.isEmpty())
+        assert(viewModel.reflections.value.single().prompt == "Mi mapa de situaciones")
+    }
+
+    @Test
+    fun `actividad con proposito - salir a la mitad no guarda nada`() {
+        startApp()
+        tag("tab_activities").performClick()
+        click("guided_act_mapa_situaciones")
+        click("guided_start")
+        click("option_examen")
+        tag("guided_close").performClick()
+        compose.waitForIdle()
+        assert(viewModel.completions.value.isEmpty())
+        tag("guided_act_mapa_situaciones").assertExists()
+    }
+
+    @Test
+    fun `mis salvavidas - sin adulto vinculado el boton no simula un envio`() {
+        startApp()
+        click("home_salvavidas")
+        tag("salvavidas_request_button").assertIsNotEnabled()
+        tag("salvavidas_not_linked").assertExists()
+        click("salvavidas_all_lines")
+        compose.onAllNodesWithText("Línea Amiga Saludable", substring = true).onFirst().assertExists()
     }
 
     @Test

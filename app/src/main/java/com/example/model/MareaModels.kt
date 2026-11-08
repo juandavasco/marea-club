@@ -22,7 +22,7 @@ enum class MareaType(
         secondaryColor = TideTranquilaSecondary,
         backgroundColor = TideTranquilaBg,
         subtitle = "Aguas calmas y bienestar",
-        description = "Momentos de calma, seguridad y recarga interior.",
+        description = "Me siento en calma o con poco movimiento.",
         muniMessage = "Qué lindo momento para disfrutar de tu calma y nutrir tu isla. Muni te acompaña en este espacio.",
         defaultSituation = "Tiempo para mí"
     ),
@@ -33,7 +33,7 @@ enum class MareaType(
         secondaryColor = TideMovidaSecondary,
         backgroundColor = TideMovidaBg,
         subtitle = "Inquietud o energía activa",
-        description = "Mucha energía, pensamientos rápidos, nerviosismo o dudas.",
+        description = "Siento movimiento o varias cosas pasando.",
         muniMessage = "Tener días de corriente rápida es completamente natural. No tienes que forzar nada, solo observar las olas fluir.",
         defaultSituation = "Escuela y amigos"
     ),
@@ -44,7 +44,7 @@ enum class MareaType(
         secondaryColor = TideAltaSecondary,
         backgroundColor = TideAltaBg,
         subtitle = "Emociones intensas",
-        description = "Sensación de carga, tristeza, frustración o enojo fuerte.",
+        description = "La emoción se siente intensa u ocupa mucho espacio.",
         muniMessage = "Cuando la marea sube, las cosas pueden sentirse abrumadoras. Recuerda que estás a salvo y que cada emoción merece espacio.",
         defaultSituation = "Exigencias o cambios"
     ),
@@ -55,7 +55,7 @@ enum class MareaType(
         secondaryColor = TideTormentaSecondary,
         backgroundColor = TideTormentaBg,
         subtitle = "Momento difícil o desbordado",
-        description = "Oleaje pesado, dolor o nudo emocional que necesita cuidado especial.",
+        description = "Siento mucha intensidad o me cuesta encontrar calma.",
         muniMessage = "Ninguna tormenta dura para siempre. No estás fallando por sentirte así; toda marea baja cuando le damos cobijo y amor.",
         defaultSituation = "Momento difícil"
     ),
@@ -66,7 +66,7 @@ enum class MareaType(
         secondaryColor = TideNoSeSecondary,
         backgroundColor = TideNoSeBg,
         subtitle = "Pausa y exploración",
-        description = "Confusión, desconexión temporal o simplemente no tener palabras.",
+        description = "No encuentro palabras o no estoy seguro.",
         muniMessage = "Está completamente bien no saber qué sientes. El mar a veces necesita reposar en la orilla antes de mostrar sus secretos.",
         defaultSituation = "Sin motivo claro"
     );
@@ -88,7 +88,9 @@ data class MareaLogEntry(
     val situation: String = "",
     val timeOfDay: String = "",
     val location: String = "",
-    val note: String = ""
+    val note: String = "",
+    /** Solo para NO_SE: "NO_SE" (no sé qué siento) o "SIN_PALABRA" (no encuentro una emoción que me describa). */
+    val uncertainty: String = ""
 ) {
     /** Etiqueta de fecha legible, calculada desde la fecha real del registro. */
     val dayOfWeek: String get() = DateLabels.dayLabel(timestamp)
@@ -109,29 +111,32 @@ data class ActivityItem(
     val category: ActivityCategory,
     val durationMin: String,
     val description: String,
-    val rewardTitle: String,
-    val rewardIcon: String,
+    /** Ícono decorativo de la herramienta. */
+    val icon: String,
     val recommendedFor: List<MareaType>
 )
 
-data class IslandElement(
-    val id: String,
-    val name: String,
-    val category: ActivityCategory,
-    val meaning: String
+/** Objeto que el niño eligió para su isla. La reflexión es privada y opcional. */
+data class PlacedIslandObject(
+    val objectId: String,
+    val sourceActivityId: String,
+    val sourceTitle: String,
+    val timestamp: Long,
+    val reflection: String = ""
 )
 
 data class IslandState(
-    val level: Int = 1,
-    val levelName: String = "Orilla Inicial",
-    /** Igual al nivel; se conserva para las pantallas existentes. */
-    val stage: Int = 1,
-    /** Avance hacia el siguiente nivel (0–100), derivado de los elementos desbloqueados. */
-    val progressPercent: Int = 0,
-    val skyMode: SkyMode = SkyMode.DIA,
-    val unlockedElementIds: Set<String> = emptySet(),
-    /** Elementos que el usuario ya abrió; los demás desbloqueados se muestran como "Nuevo". */
-    val seenElementIds: Set<String> = emptySet()
+    val placed: List<PlacedIslandObject> = emptyList(),
+    val skyMode: SkyMode = SkyMode.DIA
+) {
+    val placedIds: Set<String> get() = placed.map { it.objectId }.toSet()
+}
+
+/** Elección de objeto que se ofrece al terminar una actividad significativa. */
+data class IslandOffer(
+    val activityId: String,
+    val activityTitle: String,
+    val objectIds: List<String>
 )
 
 enum class SkyMode(val title: String, val description: String) {
@@ -189,56 +194,12 @@ data class PsychologicalRoute(
     val phoneOrContact: String get() = phone
 }
 
-data class QuestionOption(
-    val label: String,
-    /** Peso interno para ordenar sugerencias (0, 1 o 2). Nunca se muestra al usuario. */
-    val score: Int
-)
-
-data class QuestionItem(
-    val id: String,
-    val prompt: String,
-    val options: List<QuestionOption>
-)
-
-data class QuestionnaireDefinition(
-    val id: String,
-    val title: String,
-    val iconEmoji: String,
-    val subtitle: String,
-    val introduction: String,
-    val objective: String,
-    val questions: List<QuestionItem>
-)
-
-/**
- * Resultado de la autoevaluación preliminar NO clínica.
- * No contiene puntaje ni nivel: solo orientación y rutas sugeridas.
- */
-data class SelfCheckResult(
-    val questionnaireId: String,
-    val title: String,
-    val focus: com.example.domain.SelfCheckGuidance.Focus,
-    val message: String,
-    val suggestions: List<String>,
-    val suggestedRouteIds: List<String>
-)
-
-data class AnonymousConsultation(
-    val id: String,
-    val timestamp: Long,
-    val message: String,
-    val muniResponse: String,
-    val recommendedRoute: String,
-    val isEmergencyFlagged: Boolean = false
-)
-
+/** Navegación infantil del Prompt Maestro §5: Inicio, Mareas, Actividades y Mi isla. */
 enum class BottomNavTab(val label: String) {
     HOME("Inicio"),
-    MAREA("Marea"),
-    ISLAND("Mi isla"),
-    PROGRESS("Mi progreso"),
-    BURBUJA("Actividades")
+    MAREA("Mareas"),
+    ACTIVIDADES("Actividades"),
+    ISLAND("Mi isla")
 }
 
 enum class ActivityFeedback(val label: String) {
@@ -255,11 +216,8 @@ data class ActivityCompletion(
     val feedback: ActivityFeedback? = null
 )
 
-/** Lo que se muestra al terminar una actividad: qué acción desbloqueó qué elemento. */
-data class RewardInfo(
+/** Cierre de una herramienta de "Para calmarme": solo la pregunta opcional "¿te ayudó?". */
+data class ClosingInfo(
     val completionId: String,
-    val sourceTitle: String,
-    val elementName: String,
-    val icon: String,
-    val newlyUnlocked: Boolean
+    val title: String
 )

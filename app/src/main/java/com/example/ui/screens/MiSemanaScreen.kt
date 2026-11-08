@@ -44,23 +44,19 @@ import com.example.ui.theme.*
 
 enum class ProgressTabFilter {
     MOMENTOS,
-    ACTIVIDADES,
     REFLEXIONES
 }
 
 @Composable
-fun ProgressScreen(
+fun MiSemanaScreen(
     weeklyOverview: List<WeeklyDayData>,
-    calmMomentsCount: Int,
-    activitiesExploredCount: Int,
     logs: List<MareaLogEntry>,
     reflections: List<ReflectionEntry>,
-    availableActivities: List<ActivityItem>,
     onOpenReflection: () -> Unit,
-    onOpenActivity: (ActivityItem) -> Unit,
     weekHasEnoughData: Boolean = true,
     onDeleteReflection: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    headerContent: (@Composable () -> Unit)? = null
 ) {
     val scrollState = rememberScrollState()
     var selectedDayName by remember { mutableStateOf<String?>(null) }
@@ -75,32 +71,12 @@ fun ProgressScreen(
         modifier = modifier
             .fillMaxSize()
             .verticalScroll(scrollState)
-            .padding(horizontal = 20.dp, vertical = 6.dp),
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(6.dp))
 
-        // Title and Subtitle matching mockup with Sniglet font
-        Text(
-            text = "Mi progreso",
-            fontFamily = SnigletFontFamily,
-            fontWeight = FontWeight.Normal,
-            fontSize = 34.sp,
-            color = MareaTextDark,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Text(
-            text = "Conoce tus mareas, a tu ritmo",
-            fontFamily = SnigletFontFamily,
-            fontSize = 16.sp,
-            color = MareaTextDark,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 2.dp, bottom = 14.dp)
-        )
+        if (headerContent != null) headerContent()
 
         // Card 1: Interactive Bar Chart matching design
         Card(
@@ -334,7 +310,7 @@ fun ProgressScreen(
                         )
 
                         Text(
-                            text = "Cada emoción cuenta. Explora tus registros, momentos de calma y actividades exploradas.",
+                            text = "Cada emoción cuenta. Mira tus registros y lo que guardaste en tu diario. Solo tú los ves.",
                             fontFamily = NunitoFontFamily,
                             fontSize = 12.sp,
                             lineHeight = 16.sp,
@@ -362,13 +338,7 @@ fun ProgressScreen(
                         modifier = Modifier.weight(1f)
                     )
                     FilterTabButton(
-                        title = "Actividades",
-                        isSelected = selectedTabFilter == ProgressTabFilter.ACTIVIDADES,
-                        onClick = { selectedTabFilter = ProgressTabFilter.ACTIVIDADES },
-                        modifier = Modifier.weight(1f)
-                    )
-                    FilterTabButton(
-                        title = "Reflexiones",
+                        title = "Mi diario",
                         isSelected = selectedTabFilter == ProgressTabFilter.REFLEXIONES,
                         onClick = { selectedTabFilter = ProgressTabFilter.REFLEXIONES },
                         modifier = Modifier.weight(1f)
@@ -458,50 +428,6 @@ fun ProgressScreen(
                         }
                     }
 
-                    ProgressTabFilter.ACTIVIDADES -> {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            availableActivities.forEach { act ->
-                                Surface(
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = Color.White,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Text(text = act.rewardIcon, fontSize = 24.sp)
-
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = act.title,
-                                                fontFamily = SnigletFontFamily,
-                                                fontSize = 14.sp,
-                                                color = MareaTextDark
-                                            )
-                                            Text(
-                                                text = "${act.category.title} · ${act.durationMin}",
-                                                fontFamily = NunitoFontFamily,
-                                                fontSize = 11.sp,
-                                                color = MareaTextMuted
-                                            )
-                                        }
-
-                                        Button(
-                                            onClick = { onOpenActivity(act) },
-                                            shape = RoundedCornerShape(12.dp),
-                                            colors = ButtonDefaults.buttonColors(containerColor = MareaDeepBlue),
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
-                                        ) {
-                                            Text("Explorar", fontFamily = SnigletFontFamily, fontSize = 11.sp, color = Color.White)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
                     ProgressTabFilter.REFLEXIONES -> {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (reflections.isEmpty()) {
@@ -567,107 +493,6 @@ fun ProgressScreen(
                             }
                         }
                     }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Row of 2 stats cards matching mockup (clean vector, NO white boxes)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // Stat Card 1: "Momentos de calma"
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFC4E4ED)),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(124.dp)
-                    .testTag("calm_moments_stat_card")
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.icon_lotus),
-                        contentDescription = "Flor de loto",
-                        modifier = Modifier.size(42.dp)
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "$calmMomentsCount momentos",
-                        fontFamily = SnigletFontFamily,
-                        fontSize = 13.sp,
-                        color = MareaDeepBlue
-                    )
-
-                    Text(
-                        text = "Momentos de calma",
-                        fontFamily = QuicksandFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        color = MareaTextDark,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
-
-            // Stat Card 2: "Actividades exploradas"
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFC4E4ED)),
-                modifier = Modifier
-                    .weight(1f)
-                    .height(124.dp)
-                    .testTag("activities_stat_card")
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.6f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Assignment,
-                            contentDescription = "Actividades exploradas",
-                            tint = MareaDeepBlue,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "$activitiesExploredCount exploradas",
-                        fontFamily = SnigletFontFamily,
-                        fontSize = 13.sp,
-                        color = MareaDeepBlue
-                    )
-
-                    Text(
-                        text = "Actividades exploradas",
-                        fontFamily = QuicksandFontFamily,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                        color = MareaTextDark,
-                        textAlign = TextAlign.Center
-                    )
                 }
             }
         }
