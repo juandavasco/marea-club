@@ -138,14 +138,14 @@ class FakeFamilyBackend(
 
     // ------------------------------------------------------------------ Mis salvavidas
 
-    override suspend fun sendCompanionRequest(familyId: String, toUid: String, reason: CompanionReason): String {
+    override suspend fun sendCompanionRequest(familyId: String, toUids: List<String>, reason: CompanionReason?): List<String> {
         requireOnline()
         val f = server.families.getValue(familyId)
-        check(f.childUid == uid && toUid in f.adultUids)
-        val r = CompanionRequest(server.nextId("req_"), uid!!, toUid, reason, server.now(), RequestStatus.ENVIADA, null)
-        server.requests.getOrPut(familyId) { mutableListOf() }.add(0, r)
+        check(f.childUid == uid && toUids.isNotEmpty() && toUids.all { it in f.adultUids })
+        val created = toUids.map { CompanionRequest(server.nextId("req_"), uid!!, it, reason, server.now(), RequestStatus.ENVIADA, null) }
+        server.requests.getOrPut(familyId) { mutableListOf() }.addAll(0, created)
         server.requestsChanged()
-        return r.id
+        return created.map { it.id }
     }
 
     override fun observeRequests(familyId: String, asChild: Boolean, onChange: (List<CompanionRequest>) -> Unit): Subscription =

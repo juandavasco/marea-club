@@ -9,6 +9,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.Settings
@@ -200,10 +202,12 @@ fun AdultApp(family: FamilyViewModel, modifier: Modifier = Modifier) {
 private enum class AdultTab(val label: String, val tag: String) {
     RESUMEN("Resumen", "adult_tab_resumen"),
     FAMILIA("Familia", "adult_tab_familia"),
+    BITACORA("Bitácora", "adult_tab_bitacora"),
+    CONEXION("Conexión", "adult_tab_conexion"),
     CONFIG("Configuración", "adult_tab_config")
 }
 
-/** Perfil del adulto con sus pestañas. Bitácora y Conexión familiar llegan en la entrega 5. */
+/** Perfil del adulto (Prompt Maestro §13): Resumen, Familia, Bitácora, Conexión familiar y Configuración. */
 @Composable
 private fun AdultHome(
     family: FamilyViewModel,
@@ -222,6 +226,8 @@ private fun AdultHome(
             when (tab) {
                 AdultTab.RESUMEN -> AdultSummaryScreen(family, info, requests, week, busy, message)
                 AdultTab.FAMILIA -> AdultFamilyScreen(family, info, activeCode, busy, message, Modifier)
+                AdultTab.BITACORA -> BitacoraScreen()
+                AdultTab.CONEXION -> ConnectionListScreen(forChild = false)
                 AdultTab.CONFIG -> AdultSettingsScreen(family)
             }
         }
@@ -236,13 +242,15 @@ private fun AdultHome(
                                 when (t) {
                                     AdultTab.RESUMEN -> Icons.Default.Home
                                     AdultTab.FAMILIA -> Icons.Default.People
+                                    AdultTab.BITACORA -> Icons.AutoMirrored.Filled.MenuBook
+                                    AdultTab.CONEXION -> Icons.Default.Favorite
                                     AdultTab.CONFIG -> Icons.Default.Settings
                                 },
                                 contentDescription = null
                             )
                         }
                     },
-                    label = { Text(t.label, color = Color.White) },
+                    label = { Text(t.label, color = Color.White, fontSize = 11.sp, maxLines = 1, softWrap = false) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = MareaTealText,
                         unselectedIconColor = Color.White,
@@ -296,7 +304,7 @@ private fun AdultSummaryScreen(
         if (past.isNotEmpty()) {
             MareaSectionTitle("Pedidos anteriores")
             past.forEach { r ->
-                BodyText("${dateTime(r.createdAtMillis)} · ${r.reason.label} · ${statusLabel(r.status)}", Modifier.padding(bottom = MareaSpace.xs), color = MareaTextMuted)
+                BodyText("${dateTime(r.createdAtMillis)} · ${r.reason?.label ?: "sin especificar"} · ${statusLabel(r.status)}", Modifier.padding(bottom = MareaSpace.xs), color = MareaTextMuted)
             }
         }
     }
@@ -317,7 +325,8 @@ private fun statusLabel(s: RequestStatus): String = when (s) {
 private fun AdultRequestCard(r: CompanionRequest, childName: String, busy: Boolean, onRespond: (RequestStatus) -> Unit) {
     MareaCard(modifier = Modifier.padding(bottom = MareaSpace.m).testTag("adult_request_${r.id}"), background = Color(0xFFFFF6E5)) {
         Text("$childName necesita acompañamiento", fontFamily = QuicksandFontFamily, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = MareaTextDark)
-        BodyText("«${r.reason.label}» · ${dateTime(r.createdAtMillis)}", Modifier.padding(top = MareaSpace.xs))
+        BodyText("«Necesito que estés conmigo. Cuando puedas, ven a acompañarme».", Modifier.padding(top = MareaSpace.xs))
+        BodyText("${r.reason?.let { "Necesita: ${it.label}" } ?: "No dijo qué necesita (no es necesario)"} · ${dateTime(r.createdAtMillis)}", Modifier.padding(top = MareaSpace.xs))
         BodyText(
             "No hace falta preguntar qué pasó de inmediato: acompañe primero. Estado: ${statusLabel(r.status)}.",
             Modifier.padding(top = MareaSpace.xs, bottom = MareaSpace.m), color = MareaTextMuted

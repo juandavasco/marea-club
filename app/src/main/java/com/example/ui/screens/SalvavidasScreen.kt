@@ -40,8 +40,8 @@ fun SalvavidasScreen(
     requests: List<CompanionRequest>,
     busy: Boolean,
     message: String?,
-    onSend: (toUid: String, reason: CompanionReason) -> Unit,
-    onSetStatus: (requestId: String, status: RequestStatus) -> Unit,
+    onSend: (toUids: List<String>, reason: CompanionReason?) -> Unit,
+    onSetStatus: (requestIds: List<String>, status: RequestStatus) -> Unit,
     /** Abre "Mi familia" para vincularse. */
     onOpenFamily: () -> Unit,
     onOpenAllLines: () -> Unit,
@@ -54,7 +54,8 @@ fun SalvavidasScreen(
         runCatching { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$number"))) }
     }
     val now = clock()
-    val active = requests.firstOrNull { it.status.isOpen && now - it.createdAtMillis < OPEN_WINDOW_MS }
+    // Pedidos abiertos del último envío (uno por adulto elegido).
+    val active = requests.filter { it.status.isOpen && now - it.createdAtMillis < OPEN_WINDOW_MS }
     val names = linkedAdults.toMap()
 
     Column(
@@ -72,7 +73,7 @@ fun SalvavidasScreen(
 
         when {
             linkedAdults.isEmpty() -> NotLinkedCard(onOpenFamily)
-            active != null -> ActiveRequestCard(active, names[active.toUid] ?: "Tu adulto", clock, busy, onSetStatus)
+            active.isNotEmpty() -> ActiveRequestCard(active, names, clock, busy, onSetStatus)
             else -> NewRequestCard(linkedAdults, busy, onSend)
         }
         if (message != null) {
@@ -121,35 +122,51 @@ private fun NotLinkedCard(onOpenFamily: () -> Unit) {
 }
 
 @Composable
-private fun NewRequestCard(adults: List<Pair<String, String>>, busy: Boolean, onSend: (String, CompanionReason) -> Unit) {
-    var to by remember(adults) { mutableStateOf(adults.singleOrNull()?.first) }
+private fun NewRequestCard(adults: List<Pair<String, String>>, busy: Boolean, onSend: (List<String>, CompanionReason?) -> Unit) {
+    // Por defecto se avisa a todos los adultos vinculados; el niño puede quitar a alguno.
+    var to by remember(adults) { mutableStateOf(adults.map { it.first }.toSet()) }
     var reason by remember { mutableStateOf<CompanionReason?>(null) }
     MareaCard(modifier = Modifier.testTag("salvavidas_new_request")) {
         CardTitle("Necesito acompañamiento")
+        CardBody(
+            "Tu adulto recibirá: «Necesito que estés conmigo. Cuando puedas, ven a acompañarme». No tienes que escribir qué pasó.",
+            Modifier.padding(top = MareaSpace.xs)
+        )
         if (adults.size > 1) {
-            CardBody("¿A quién quieres avisar?", Modifier.padding(top = MareaSpace.s, bottom = MareaSpace.s))
+            CardBody("¿A quién quieres avisar?", Modifier.padding(top = MareaSpace.m, bottom = MareaSpace.s))
             Column(verticalArrangement = Arrangement.spacedBy(MareaSpace.s)) {
                 adults.forEachIndexed { i, (uid, name) ->
-                    MareaOption(text = name, selected = to == uid, onClick = { to = uid }, tag = "salvavidas_to_$i")
+                    MareaOption(
+                        text = name,
+                        selected = uid in to,
+                        onClick = { to = if (uid in to) to - uid else to + uid },
+                        tag = "salvavidas_to_$i"
+                    )
                 }
             }
         }
-        CardBody("¿Qué necesitas? No tienes que contar más.", Modifier.padding(top = MareaSpace.m, bottom = MareaSpace.s))
+        CardBody("¿Qué necesitas? (opcional)", Modifier.padding(top = MareaSpace.m, bottom = MareaSpace.s))
         Column(verticalArrangement = Arrangement.spacedBy(MareaSpace.s)) {
             CompanionReason.entries.forEach { r ->
-                MareaOption(text = r.label, selected = reason == r, onClick = { reason = r }, tag = "salvavidas_reason_${r.wire}")
+                MareaOption(
+                    text = r.label,
+                    selected = reason == r,
+                    onClick = { reason = if (reason == r) null else r },
+                    tag = "salvavidas_reason_${r.wire}"
+                )
             }
         }
         Spacer(Modifier.height(MareaSpace.l))
-        val name = adults.firstOrNull { it.first == to }?.second
+        val chosen = adults.filter { it.first in to }
         MareaPrimaryButton(
             text = when {
                 busy -> "Enviando…"
-                name != null -> "Avisar a $name"
-                else -> "Necesito acompañamiento"
+                chosen.size == 1 -> "Avisar a ${chosen.single().second}"
+                chosen.size > 1 -> "Avisar a ${chosen.joinToString(" y ") { it.second }}"
+                else -> "Elige a quién avisar"
             },
-            onClick = { val t = to; val r = reason; if (t != null && r != null) onSend(t, r) },
-            enabled = !busy && to != null && reason != null,
+            onClick = { if (to.isNotEmpty()) onSend(chosen.map { it.first }, reason) },
+            enabled = !busy && to.isNotEmpty(),
             tag = "salvavidas_request_button"
         )
     }
@@ -157,53 +174,67 @@ private fun NewRequestCard(adults: List<Pair<String, String>>, busy: Boolean, on
 
 @Composable
 private fun ActiveRequestCard(
-    request: CompanionRequest,
-    adultName: String,
+    active: List<CompanionRequest>,
+    names: Map<String, String>,
     clock: () -> Long,
     busy: Boolean,
-    onSetStatus: (String, RequestStatus) -> Unit
+    onSetStatus: (List<String>, RequestStatus) -> Unit
 ) {
-    val deadline = request.createdAtMillis + NO_RESPONSE_MINUTES * 60_000L
-    var checkedAt by remember(request.id) { mutableLongStateOf(clock()) }
+    val first = active.minByOrNull { it.createdAtMillis } ?: return
+    val key = active.joinToString { it.id }
+    val deadline = first.createdAtMillis + NO_RESPONSE_MINUTES * 60_000L
+    var checkedAt by remember(key) { mutableLongStateOf(clock()) }
     // Volver a mirar una sola vez, cuando se cumplan los 15 minutos (sin ciclos).
-    LaunchedEffect(request.id) {
+    LaunchedEffect(key) {
         val wait = deadline - clock()
         if (wait > 0) {
             delay(wait)
             checkedAt = clock()
         }
     }
-    val waitMs = deadline - checkedAt
-    val sentAt = SimpleDateFormat("h:mm a", Locale.forLanguageTag("es-CO")).format(Date(request.createdAtMillis))
-    val noResponse = request.status == RequestStatus.ENVIADA && waitMs <= 0
+    val sentAt = SimpleDateFormat("h:mm a", Locale.forLanguageTag("es-CO")).format(Date(first.createdAtMillis))
+    val anyAnswer = active.any { it.status != RequestStatus.ENVIADA }
+    val noResponse = !anyAnswer && checkedAt >= deadline
+    val allCannot = active.all { it.status == RequestStatus.NO_PUEDO }
+    val ids = active.map { it.id }
 
     MareaCard(modifier = Modifier.testTag("salvavidas_active_request")) {
         CardTitle(
-            when (request.status) {
-                RequestStatus.ENVIADA -> if (noResponse) "$adultName todavía no lo ha visto" else "Pedido enviado"
-                RequestStatus.VISTA -> "$adultName vio tu pedido"
-                RequestStatus.VOY -> "$adultName va en camino"
-                RequestStatus.NO_PUEDO -> "$adultName no puede ahora"
-                else -> "Pedido"
+            when {
+                active.any { it.status == RequestStatus.VOY } -> "Alguien va en camino"
+                allCannot -> "Ahora no pueden ir"
+                noResponse -> "Todavía no lo han visto"
+                else -> "Pedido enviado a las $sentAt"
             }
         )
-        CardBody(
-            when (request.status) {
-                RequestStatus.ENVIADA -> if (noResponse)
-                    "Pasaron más de $NO_RESPONSE_MINUTES minutos. Si necesitas ayuda ya, busca a otro adulto cerca de ti o llama a una de las líneas de abajo."
-                else "Enviado a $adultName a las $sentAt («${request.reason.label}»). Aquí verás cuando lo vea."
-                RequestStatus.VISTA -> "Ya sabe que lo necesitas. Si es urgente, también puedes llamar a una línea."
-                RequestStatus.VOY -> "Respondió que va a acompañarte."
-                RequestStatus.NO_PUEDO -> "Busca a otro adulto de confianza cerca de ti o llama a una de las líneas de abajo."
-                else -> ""
-            },
-            Modifier
-                .padding(top = MareaSpace.xs, bottom = MareaSpace.m)
-                .testTag("salvavidas_status_${if (noResponse) "sin_respuesta" else request.status.wire}")
-        )
-        if (request.status == RequestStatus.ENVIADA || request.status == RequestStatus.VISTA) {
-            MareaSecondaryButton("Cancelar el pedido", onClick = { onSetStatus(request.id, RequestStatus.CANCELADA) }, enabled = !busy, tag = "salvavidas_cancel")
+        first.reason?.let { CardBody("Lo que necesitas: ${it.label}", Modifier.padding(top = MareaSpace.xs)) }
+        Column(Modifier.padding(vertical = MareaSpace.s)) {
+            active.forEach { r ->
+                val name = names[r.toUid] ?: "Tu adulto"
+                CardBody(
+                    "• $name: " + when (r.status) {
+                        RequestStatus.ENVIADA -> "aún no lo ha visto"
+                        RequestStatus.VISTA -> "lo vio"
+                        RequestStatus.VOY -> "va en camino"
+                        RequestStatus.NO_PUEDO -> "no puede ahora"
+                        else -> ""
+                    },
+                    Modifier.testTag("salvavidas_status_${r.status.wire}")
+                )
+            }
         }
-        MareaTextButton("Ya estoy acompañado", onClick = { onSetStatus(request.id, RequestStatus.CERRADA) }, tag = "salvavidas_close")
+        if (noResponse || allCannot) {
+            CardBody(
+                if (noResponse) "Pasaron más de $NO_RESPONSE_MINUTES minutos. Si necesitas ayuda ya, busca a otro adulto cerca de ti o llama a una de las líneas de abajo."
+                else "Busca a otro adulto de confianza cerca de ti o llama a una de las líneas de abajo.",
+                Modifier
+                    .padding(bottom = MareaSpace.s)
+                    .testTag(if (noResponse) "salvavidas_status_sin_respuesta" else "salvavidas_all_cannot")
+            )
+        }
+        if (active.none { it.status == RequestStatus.VOY }) {
+            MareaSecondaryButton("Cancelar el pedido", onClick = { onSetStatus(ids, RequestStatus.CANCELADA) }, enabled = !busy, tag = "salvavidas_cancel")
+        }
+        MareaTextButton("Ya estoy acompañado", onClick = { onSetStatus(ids, RequestStatus.CERRADA) }, tag = "salvavidas_close")
     }
 }

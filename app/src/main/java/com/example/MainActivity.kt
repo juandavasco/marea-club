@@ -36,7 +36,8 @@ import com.example.ui.theme.MareaClubTheme
 enum class SubScreen {
     SALVAVIDAS,
     DIRECTORY,
-    FAMILY
+    FAMILY,
+    CONNECTION
 }
 
 class MainActivity : ComponentActivity() {
@@ -214,6 +215,10 @@ fun MareaClubApp(viewModel: MareaViewModel, family: FamilyViewModel) {
             )
             return
         }
+        SubScreen.CONNECTION -> {
+            ConnectionListScreen(forChild = true, modifier = safe, onBack = { activeSubScreen = null })
+            return
+        }
         SubScreen.FAMILY -> {
             ChildFamilyScreen(
                 family = family,
@@ -308,7 +313,8 @@ fun MareaClubApp(viewModel: MareaViewModel, family: FamilyViewModel) {
                     calmTools = viewModel.calmTools,
                     completions = completions,
                     onOpenGuided = { viewModel.openGuided(it) },
-                    onOpenTool = { viewModel.openTool(it) }
+                    onOpenTool = { viewModel.openTool(it) },
+                    onOpenFamilyConnection = if (childLinked) ({ activeSubScreen = SubScreen.CONNECTION }) else null
                 )
 
                 BottomNavTab.ISLAND -> IslandScreen(

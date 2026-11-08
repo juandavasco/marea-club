@@ -337,7 +337,7 @@ class AppFlowsTest {
         click("salvavidas_request_button")
         tag("salvavidas_status_enviada").assertExists()
         val req = server.requests.getValue(adultFamilyId).single()
-        assert(req.reason.wire == "compania" && req.toUid == adultPhone.currentUid)
+        assert(req.reason?.wire == "compania" && req.toUid == adultPhone.currentUid)
         // El adulto responde desde su teléfono
         kotlinx.coroutines.runBlocking { adultPhone.respondToRequest(adultFamilyId, req.id, com.example.data.family.RequestStatus.VOY) }
         compose.waitForIdle()
@@ -392,7 +392,7 @@ class AppFlowsTest {
         kotlinx.coroutines.runBlocking {
             childPhone.signInAnonymously()
             childPhone.redeemLinkCode(LinkCode.hash(code), LinkRole.CHILD, "Sofi")
-            childPhone.sendCompanionRequest(fid, family.myUid!!, com.example.data.family.CompanionReason.HABLAR)
+            childPhone.sendCompanionRequest(fid, listOf(family.myUid!!), com.example.data.family.CompanionReason.HABLAR)
         }
         compose.waitForIdle()
         tag("adult_child_linked").assertExists()
@@ -402,5 +402,64 @@ class AppFlowsTest {
         assert(server.requests.getValue(fid).single().status == com.example.data.family.RequestStatus.VOY)
         tag("adult_week_not_shared").assertExists()
         tag("adult_no_push_notice").assertExists()
+    }
+
+    // ------------------------------------------------------------------ entrega 5
+
+    private fun adultWithFamily() {
+        click("welcome_start_button")
+        click("role_adult")
+        family.onGoogleIdToken("juan")
+        compose.waitForIdle()
+        click("adult_create_family")
+    }
+
+    @Test
+    fun `bitacora - recorre una experiencia completa sin guardar nada`() {
+        adultWithFamily()
+        tag("adult_tab_bitacora").performClick()
+        tag("bitacora_notice").assertExists()
+        click("bit_mas_explicacion")
+        tag("experience_intro").assertExists()
+        click("experience_next")
+        click("reflection_edad")
+        compose.onNodeWithText("¿Qué otras hay?", substring = true).assertExists()
+        click("experience_next")
+        click("reflection_amigo"); click("reflection_cansado")
+        click("experience_next")
+        click("reflection_abierta")
+        click("experience_next")
+        tag("experience_learning").assertExists()
+        click("experience_done")
+        tag("bit_antes_reaccion").assertExists()
+    }
+
+    @Test
+    fun `conexion familiar - el adulto ve las 5 guias y abre una`() {
+        adultWithFamily()
+        tag("adult_tab_conexion").performClick()
+        listOf("con_dos_perspectivas", "con_me_gustaria", "con_acuerdo_semana", "con_sin_preguntas", "con_senal_apoyo").forEach {
+            tag(it).performScrollTo().assertExists()
+        }
+        click("con_senal_apoyo")
+        tag("connection_care").assertExists()
+        click("connection_done")
+        tag("connection_notice").assertExists()
+    }
+
+    @Test
+    fun `conexion familiar - el nino la ve en Actividades solo si esta vinculado`() {
+        startApp()
+        tag("tab_activities").performClick()
+        tag("activities_family_connection").assertDoesNotExist()
+    }
+
+    @Test
+    fun `conexion familiar - el nino vinculado puede abrir las ideas`() {
+        linkChildThroughUi()
+        tag("tab_activities").performClick()
+        click("activities_family_connection")
+        click("con_sin_preguntas")
+        tag("connection_guide").assertExists()
     }
 }

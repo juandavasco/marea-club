@@ -302,6 +302,8 @@ test('el pedido solo va a adultos de la familia y con un motivo general', async 
   await seedFamily({ childUid: CHILD });
   await assertFails(addDoc(requests(anon(CHILD)), request(CHILD, STRANGER)));
   await assertFails(addDoc(requests(anon(CHILD)), request(CHILD, OWNER, 'me quiero ir de la casa')));
+  await assertSucceeds(addDoc(requests(anon(CHILD)), request(CHILD, OWNER, '')));
+  await assertSucceeds(addDoc(requests(anon(CHILD)), request(CHILD, OWNER, 'estar')));
   await assertFails(addDoc(requests(anon(CHILD)), { ...request(CHILD), marea: 'TORMENTA' }));
   await assertFails(addDoc(requests(anon(CHILD)), { ...request(CHILD), mensaje: 'hola' }));
 });

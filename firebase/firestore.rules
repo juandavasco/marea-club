@@ -102,8 +102,8 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.ownerUid == uid();
 
       // -------------------------------------------------------------- Mis salvavidas
-      // El niño elige a cuál adulto avisar y un motivo general: sin texto libre, sin emociones.
-      // Solo ese adulto y el niño pueden leer el pedido.
+      // El niño elige a qué adulto avisar (a ambos = un documento por adulto) y, si quiere, qué
+      // necesita en términos generales: sin texto libre, sin emociones. Solo ese adulto y el niño lo leen.
       match /requests/{rid} {
         allow read: if isChildOf(fid) || (isAdultOf(fid) && resource.data.toUid == uid());
 
@@ -111,7 +111,7 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['childUid', 'toUid', 'reason', 'createdAt', 'status', 'respondedAt'])
           && request.resource.data.childUid == uid()
           && request.resource.data.toUid in family(fid).adultUids
-          && request.resource.data.reason in ['compania', 'hablar', 'ayuda']
+          && request.resource.data.reason in ['', 'hablar', 'compania', 'ayuda', 'estar']
           && request.resource.data.createdAt == request.time
           && request.resource.data.status == 'enviada'
           && request.resource.data.respondedAt == null;

@@ -279,13 +279,15 @@ class FamilyViewModel @JvmOverloads constructor(
     // ------------------------------------------------------------------ Mis salvavidas
 
     /** El niño envía un pedido; si no hay conexión se avisa y no queda nada en cola. */
-    fun sendRequest(toUid: String, reason: CompanionReason) = work {
+    fun sendRequest(toUids: List<String>, reason: CompanionReason?) = work {
         val fid = _familyId.value ?: return@work
-        backend.sendCompanionRequest(fid, toUid, reason)
+        if (toUids.isNotEmpty()) backend.sendCompanionRequest(fid, toUids, reason)
     }
 
-    fun childSetRequestStatus(requestId: String, status: RequestStatus) = work {
-        _familyId.value?.let { backend.childUpdateRequest(it, requestId, status) }
+    /** Cancelar o cerrar: se aplica a todos los pedidos abiertos de ese envío. */
+    fun childSetRequestStatus(requestIds: List<String>, status: RequestStatus) = work {
+        val fid = _familyId.value ?: return@work
+        requestIds.forEach { backend.childUpdateRequest(fid, it, status) }
     }
 
     fun respond(requestId: String, status: RequestStatus) = work {

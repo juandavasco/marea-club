@@ -72,7 +72,8 @@ interface FamilyBackend {
     suspend fun childLeaves(familyId: String)
 
     // Mis salvavidas
-    suspend fun sendCompanionRequest(familyId: String, toUid: String, reason: CompanionReason): String
+    /** Un pedido por cada adulto elegido (uno o ambos), en una sola operación. */
+    suspend fun sendCompanionRequest(familyId: String, toUids: List<String>, reason: CompanionReason?): List<String>
     /** Niño: sus pedidos. Adulto: los pedidos dirigidos a él. Más recientes primero. */
     fun observeRequests(familyId: String, asChild: Boolean, onChange: (List<CompanionRequest>) -> Unit): Subscription
     suspend fun respondToRequest(familyId: String, requestId: String, status: RequestStatus)
@@ -84,14 +85,16 @@ interface FamilyBackend {
     fun observeSharedWeek(familyId: String, onChange: (SharedWeek?) -> Unit): Subscription
 }
 
-/** Motivo general del pedido: nunca texto libre ni emociones (Documento Técnico §11). */
+/** Qué necesita, opcional y general: nunca texto libre ni emociones (Prompt Maestro §10). */
 enum class CompanionReason(val wire: String, val label: String) {
-    COMPANIA("compania", "Quiero compañía"),
-    HABLAR("hablar", "Quiero hablar con alguien"),
-    AYUDA("ayuda", "Necesito ayuda con algo");
+    HABLAR("hablar", "Hablar"),
+    COMPANIA("compania", "Compañía"),
+    AYUDA("ayuda", "Ayuda práctica"),
+    ESTAR("estar", "Simplemente estar acompañado");
 
     companion object {
-        fun fromWire(w: String?) = entries.firstOrNull { it.wire == w } ?: COMPANIA
+        /** null = el niño prefirió no decirlo. */
+        fun fromWire(w: String?) = entries.firstOrNull { it.wire == w }
     }
 }
 
@@ -110,7 +113,7 @@ data class CompanionRequest(
     val id: String,
     val childUid: String,
     val toUid: String,
-    val reason: CompanionReason,
+    val reason: CompanionReason?,
     val createdAtMillis: Long,
     val status: RequestStatus,
     val respondedAtMillis: Long?

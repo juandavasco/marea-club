@@ -94,7 +94,16 @@ class ScreenshotTest {
         tag("adult_tab_familia").performClick()
         tag("adult_generate_child_code").performScrollTo().performClick()
         shot("23-adulto-codigo")
+        tag("adult_tab_bitacora").performClick()
+        shot("24-adulto-bitacora")
+        tag("bit_rabia").performScrollTo().performClick()
+        tag("experience_next").performScrollTo().performClick()
+        tag("experience_next").performScrollTo().performClick()
+        tag("reflection_valida").performScrollTo().performClick()
+        shot("25-adulto-experiencia")
+        tag("adult_tab_conexion").performClick()
+        shot("26-adulto-conexion")
         tag("adult_tab_config").performClick()
-        shot("24-adulto-configuracion")
+        shot("27-adulto-configuracion")
     }
 }

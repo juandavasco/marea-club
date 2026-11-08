@@ -28,6 +28,8 @@ fun ActivitiesScreen(
     completions: List<ActivityCompletion>,
     onOpenGuided: (GuidedActivities.Activity) -> Unit,
     onOpenTool: (ActivityItem) -> Unit,
+    /** Solo si el niño está vinculado con su familia. */
+    onOpenFamilyConnection: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val explored = completions.map { it.sourceId }.toSet()
@@ -69,6 +71,17 @@ fun ActivitiesScreen(
                     )
                 }
             }
+        }
+
+        if (onOpenFamilyConnection != null) {
+            MareaSectionTitle("Con mi familia", supporting = "Ideas para compartir un rato con tu adulto. Solo si tú quieres.")
+            MareaListRow(
+                icon = "💙",
+                title = "Ideas para hacer juntos",
+                subtitle = "5 actividades cortas, en persona. Nada se guarda.",
+                onClick = onOpenFamilyConnection,
+                tag = "activities_family_connection"
+            )
         }
 
         MareaSectionTitle("Para calmarme", supporting = "Herramientas rápidas para cuando la marea está movida.")

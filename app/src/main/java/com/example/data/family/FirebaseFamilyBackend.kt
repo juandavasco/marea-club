@@ -171,23 +171,28 @@ class FirebaseFamilyBackend : FamilyBackend {
 
     private fun requests(familyId: String) = db.collection(FAMILIES).document(familyId).collection("requests")
 
-    override suspend fun sendCompanionRequest(familyId: String, toUid: String, reason: CompanionReason): String = network {
+    override suspend fun sendCompanionRequest(familyId: String, toUids: List<String>, reason: CompanionReason?): List<String> = network {
         val uid = currentUid ?: throw BackendUnavailable()
         // Comprobar conexión primero: sin ella, Firestore guardaría el pedido en cola y lo enviaría
         // más tarde, cuando el niño ya no lo espera. Mejor avisar que no se envió.
         db.collection(FAMILIES).document(familyId).get(Source.SERVER).await()
-        val ref = requests(familyId).document()
-        ref.set(
-            mapOf(
-                "childUid" to uid,
-                "toUid" to toUid,
-                "reason" to reason.wire,
-                "createdAt" to FieldValue.serverTimestamp(),
-                "status" to RequestStatus.ENVIADA.wire,
-                "respondedAt" to null
-            )
-        ).await()
-        ref.id
+        val batch = db.batch()
+        val refs = toUids.map { toUid ->
+            requests(familyId).document().also { ref ->
+                batch.set(
+                    ref, mapOf(
+                        "childUid" to uid,
+                        "toUid" to toUid,
+                        "reason" to (reason?.wire ?: ""),
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "status" to RequestStatus.ENVIADA.wire,
+                        "respondedAt" to null
+                    )
+                )
+            }
+        }
+        batch.commit().await()
+        refs.map { it.id }
     }
 
     override fun observeRequests(familyId: String, asChild: Boolean, onChange: (List<CompanionRequest>) -> Unit): Subscription {
