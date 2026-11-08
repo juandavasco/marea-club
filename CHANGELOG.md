@@ -1,5 +1,46 @@
 # Cambios
 
+## Actualización integral — entregas 1 y 2 (7 nov 2026)
+
+Sigue el Prompt Maestro y el Documento Técnico Integral v1.0 (5 nov 2026). Decisiones del 7 nov: Firebase Spark (gratis), respuestas privadas solo en el teléfono del niño, reubicar las herramientas existentes y retirar Autoevaluación y Consulta anónima.
+
+### Navegación del niño
+- Cuatro pestañas: **Inicio**, **Mareas**, **Actividades** y **Mi isla**.
+- Inicio simplificado: saludo, «¿Cómo viene tu marea?», una actividad sugerida y acceso a Mis salvavidas.
+- Mareas reúne **Registrar** y **Mi semana** (antes «Progreso»); la pestaña «Reflexiones» pasa a llamarse «Mi diario».
+- Sistema visual común (`ui/components/MareaDesign.kt`): espaciados, tarjetas, botones de 52 dp, opciones con estado seleccionado anunciado al lector de pantalla.
+
+### Mareas
+- Descripciones de las 5 mareas tomadas del Documento Técnico §5.
+- Dentro de «No sé» se puede elegir «No sé qué siento» o «No encuentro una emoción que describa cómo estoy»; se guarda con el registro.
+
+### Actividades
+- **Para explorar**: 6 actividades con propósito (Mi mapa de situaciones, Dos mareas al mismo tiempo, Antes de responder, Lo que necesito y lo que puedo pedir, Lo que no se ve de mí, Mi propio ritmo). Contenido marcado como *borrador pendiente de revisión psicológica*.
+- Se puede salir en cualquier paso sin que se guarde nada. Guardar en el diario es opcional y está desmarcado.
+- **Para calmarme**: las 8 herramientas que ya existían (respiración, burbujas, sonidos, diario, dibujo, conchas, brújula, constelación). Terminan con «¿Te ayudó?» opcional y no cambian la isla.
+
+### Mi isla
+- Una sola escena. Al terminar una actividad con propósito se ofrecen 2 o 3 objetos (hamaca, jardín, puente, faro) y el niño elige uno o «Ahora no».
+- Cada objeto muestra qué significa, de qué actividad vino y admite una reflexión privada (cifrada).
+- Se retiran niveles, porcentajes, candados, «nuevo» y contadores.
+
+### Mis salvavidas
+- Pantalla nueva con «Necesito acompañamiento». El botón queda **deshabilitado** y lo explica hasta que exista un vínculo real con un adulto (entregas 3 y 4); no se simula ningún envío.
+- Líneas 106, Línea Amiga y 123 a un toque, y acceso al directorio completo.
+
+### Retirado
+- Autoevaluación preliminar y Consulta anónima (decisión del 7 nov 2026).
+
+### Pruebas
+- Nuevas pruebas de dominio (objetos de la isla y actividades) y de almacenamiento (ofertas, objetos no ofrecidos, «Ahora no», reflexión cifrada).
+- Pruebas de interfaz de punta a punta para las cuatro pestañas, «No sé», actividad con elección de objeto, salir a la mitad y Mis salvavidas sin vínculo.
+- Capturas automáticas ampliadas a 15 pantallas.
+
+### Pendiente (entregas 3–5)
+- Cuentas y vínculo familiar con Firebase (necesita `google-services.json`), PIN del niño, envío real de Mis salvavidas, perfil del adulto (Resumen, Familia, Bitácora, Conexión familiar, Configuración).
+- Ilustraciones definitivas de los objetos de la isla (hoy son íconos provisionales).
+- Revisión psicológica de los textos de las 6 actividades.
+
 ## Fase 1 (2 nov 2026)
 
 Corrige los hallazgos de la matriz de trazabilidad de la Fase 0. Los números entre paréntesis son filas de la matriz.

@@ -2,7 +2,7 @@
 
 App Android de bienestar emocional para preadolescentes (11 a 14 años). Proyecto universitario.
 
-Marea Club ayuda a reconocer cómo te sientes con cuatro "mareas" (tranquila, movida, alta, tormenta) y la opción «No sé qué siento», ofrece actividades breves de autocuidado y muestra el avance en una isla personal, acompañado por la mascota Muni.
+Marea Club ayuda a chicos y chicas de 11 a 14 años a reconocer cómo se sienten con cinco "mareas" (tranquila, movida, alta, tormenta y no sé), ofrece actividades cortas con propósito y herramientas para calmarse, una isla personal donde guardar objetos de lo explorado y «Mis salvavidas» para pedir compañía a un adulto, siempre junto a Muni, el pulpo tejido.
 
 > **Límite:** Marea Club acompaña, pero **no diagnostica ni reemplaza** atención psicológica.
 
@@ -36,7 +36,7 @@ Marea Club ayuda a reconocer cómo te sientes con cuatro "mareas" (tranquila, mo
 
 | Carpeta | Contenido |
 | --- | --- |
-| `app/src/main/java/com/example/domain` | Reglas sin Android: isla, resumen semanal, seguridad, orientación |
+| `app/src/main/java/com/example/domain` | Reglas sin Android: actividades con propósito, objetos de la isla, resumen semanal, seguridad |
 | `app/src/main/java/com/example/data` | Contenido fijo (`MareaContent`), almacenamiento cifrado (`MareaRepository`) |
 | `app/src/main/java/com/example/ui` | Pantallas y diálogos (Jetpack Compose) |
 | `app/src/test` | Pruebas automáticas (JUnit, Robolectric, Compose UI Test) |
