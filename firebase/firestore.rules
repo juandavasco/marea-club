@@ -22,6 +22,7 @@ service cloud.firestore {
     function isAdultOf(fid) { return signedIn() && uid() in family(fid).adultUids; }
     function isChildOf(fid) { return signedIn() && family(fid).childUid == uid(); }
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+    function countOk(m, k) { return m.get(k, 0) is int && m.get(k, 0) >= 0 && m.get(k, 0) <= 200; }
 
     // Los códigos vencen 10 minutos después de creados, según la hora del servidor
     // (no se confía en el reloj del teléfono).
@@ -101,30 +102,52 @@ service cloud.firestore {
       allow delete: if signedIn() && resource.data.ownerUid == uid();
 
       // -------------------------------------------------------------- Mis salvavidas
-      // El niño solo envía "Necesito acompañamiento": sin texto libre, sin emociones.
+      // El niño elige a cuál adulto avisar y un motivo general: sin texto libre, sin emociones.
+      // Solo ese adulto y el niño pueden leer el pedido.
       match /requests/{rid} {
-        allow read: if isAdultOf(fid) || isChildOf(fid);
+        allow read: if isChildOf(fid) || (isAdultOf(fid) && resource.data.toUid == uid());
 
         allow create: if isChildOf(fid)
-          && request.resource.data.keys().hasOnly(['childUid', 'createdAt', 'status', 'respondedBy', 'respondedAt'])
+          && request.resource.data.keys().hasOnly(['childUid', 'toUid', 'reason', 'createdAt', 'status', 'respondedAt'])
           && request.resource.data.childUid == uid()
+          && request.resource.data.toUid in family(fid).adultUids
+          && request.resource.data.reason in ['compania', 'hablar', 'ayuda']
           && request.resource.data.createdAt == request.time
           && request.resource.data.status == 'enviada'
-          && request.resource.data.respondedBy == null
           && request.resource.data.respondedAt == null;
 
-        // El adulto responde con una de tres opciones; el niño puede cancelar su pedido.
+        // El adulto destinatario marca que lo vio y responde; el niño puede cancelar o cerrar.
         allow update: if (isAdultOf(fid)
-            && changed().hasOnly(['status', 'respondedBy', 'respondedAt'])
+            && resource.data.toUid == uid()
+            && resource.data.status in ['enviada', 'vista', 'voy', 'no_puedo']
+            && changed().hasOnly(['status', 'respondedAt'])
             && request.resource.data.status in ['vista', 'voy', 'no_puedo']
-            && request.resource.data.respondedBy == uid()
             && request.resource.data.respondedAt == request.time)
           || (isChildOf(fid)
             && resource.data.childUid == uid()
             && changed().hasOnly(['status'])
-            && request.resource.data.status == 'cancelada');
+            && request.resource.data.status in ['cancelada', 'cerrada']);
 
         allow delete: if false;
+      }
+
+      // -------------------------------------------------------------- Compartir mi semana
+      // Solo si el niño lo activa: cuántos registros hubo de cada marea y en cuántos días.
+      // Sin notas, sin contexto, sin fechas exactas. El niño puede dejar de compartir (borrarlo).
+      match /shared/{docId} {
+        allow read: if isAdultOf(fid) || isChildOf(fid);
+        allow create, update: if isChildOf(fid) && docId == 'week'
+          && request.resource.data.keys().hasOnly(['weekStart', 'counts', 'daysWithRecord', 'updatedAt'])
+          && request.resource.data.weekStart is string && request.resource.data.weekStart.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
+          && request.resource.data.counts is map
+          && request.resource.data.counts.keys().hasOnly(['TRANQUILA', 'MOVIDA', 'ALTA', 'TORMENTA', 'NO_SE'])
+          && countOk(request.resource.data.counts, 'TRANQUILA') && countOk(request.resource.data.counts, 'MOVIDA')
+          && countOk(request.resource.data.counts, 'ALTA') && countOk(request.resource.data.counts, 'TORMENTA')
+          && countOk(request.resource.data.counts, 'NO_SE')
+          && request.resource.data.daysWithRecord is int
+          && request.resource.data.daysWithRecord >= 0 && request.resource.data.daysWithRecord <= 7
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if isChildOf(fid);
       }
     }
 

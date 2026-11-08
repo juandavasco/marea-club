@@ -284,39 +284,48 @@ test('nadie se declara niño de una familia que no lo tiene vinculado', async ()
 
 // ------------------------------------------------------------------ Mis salvavidas
 
-const request = (uid) => ({ childUid: uid, createdAt: serverTimestamp(), status: 'enviada', respondedBy: null, respondedAt: null });
+const request = (uid, to = OWNER, reason = 'compania') => ({
+  childUid: uid, toUid: to, reason, createdAt: serverTimestamp(), status: 'enviada', respondedAt: null,
+});
+const requests = (db) => collection(db, 'families', FID, 'requests');
 
-test('el niño vinculado pide acompañamiento y sus adultos lo ven', async () => {
+test('el niño pide acompañamiento a un adulto; solo ese adulto lo ve', async () => {
   await seedFamily({ adultUids: [OWNER, SECOND], childUid: CHILD });
-  const ref = await assertSucceeds(addDoc(collection(anon(CHILD), 'families', FID, 'requests'), request(CHILD)));
-  await assertSucceeds(getDoc(doc(google(OWNER), 'families', FID, 'requests', ref.id)));
+  const ref = await assertSucceeds(addDoc(requests(anon(CHILD)), request(CHILD, SECOND)));
   await assertSucceeds(getDoc(doc(google(SECOND), 'families', FID, 'requests', ref.id)));
+  await assertFails(getDoc(doc(google(OWNER), 'families', FID, 'requests', ref.id)));
   await assertFails(getDoc(doc(google(STRANGER), 'families', FID, 'requests', ref.id)));
+  await assertSucceeds(getDoc(doc(anon(CHILD), 'families', FID, 'requests', ref.id)));
 });
 
-test('el pedido no admite texto libre ni datos emocionales', async () => {
+test('el pedido solo va a adultos de la familia y con un motivo general', async () => {
   await seedFamily({ childUid: CHILD });
-  await assertFails(addDoc(collection(anon(CHILD), 'families', FID, 'requests'), { ...request(CHILD), marea: 'TORMENTA' }));
-  await assertFails(addDoc(collection(anon(CHILD), 'families', FID, 'requests'), { ...request(CHILD), mensaje: 'hola' }));
+  await assertFails(addDoc(requests(anon(CHILD)), request(CHILD, STRANGER)));
+  await assertFails(addDoc(requests(anon(CHILD)), request(CHILD, OWNER, 'me quiero ir de la casa')));
+  await assertFails(addDoc(requests(anon(CHILD)), { ...request(CHILD), marea: 'TORMENTA' }));
+  await assertFails(addDoc(requests(anon(CHILD)), { ...request(CHILD), mensaje: 'hola' }));
 });
 
 test('un niño no vinculado no puede enviar pedidos', async () => {
   await seedFamily({ childUid: CHILD });
-  await assertFails(addDoc(collection(anon('otro_nino'), 'families', FID, 'requests'), request('otro_nino')));
+  await assertFails(addDoc(requests(anon('otro_nino')), request('otro_nino')));
 });
 
-test('el adulto responde con una opción válida; el niño puede cancelar', async () => {
-  await seedFamily({ childUid: CHILD });
-  const ref = await addDoc(collection(anon(CHILD), 'families', FID, 'requests'), request(CHILD));
-  const adult = google(OWNER);
-  await assertFails(updateDoc(doc(adult, 'families', FID, 'requests', ref.id), { status: 'otra_cosa', respondedBy: OWNER, respondedAt: serverTimestamp() }));
-  await assertSucceeds(updateDoc(doc(adult, 'families', FID, 'requests', ref.id), { status: 'voy', respondedBy: OWNER, respondedAt: serverTimestamp() }));
-  await assertSucceeds(updateDoc(doc(anon(CHILD), 'families', FID, 'requests', ref.id), { status: 'cancelada' }));
+test('el adulto destinatario responde con una opción válida; el niño puede cerrar', async () => {
+  await seedFamily({ adultUids: [OWNER, SECOND], childUid: CHILD });
+  const ref = await addDoc(requests(anon(CHILD)), request(CHILD, OWNER));
+  const mine = doc(google(OWNER), 'families', FID, 'requests', ref.id);
+  await assertFails(updateDoc(mine, { status: 'otra_cosa', respondedAt: serverTimestamp() }));
+  await assertFails(updateDoc(doc(google(SECOND), 'families', FID, 'requests', ref.id), { status: 'voy', respondedAt: serverTimestamp() }));
+  await assertSucceeds(updateDoc(mine, { status: 'vista', respondedAt: serverTimestamp() }));
+  await assertSucceeds(updateDoc(mine, { status: 'voy', respondedAt: serverTimestamp() }));
+  await assertSucceeds(updateDoc(doc(anon(CHILD), 'families', FID, 'requests', ref.id), { status: 'cerrada' }));
+  await assertFails(updateDoc(mine, { status: 'voy', respondedAt: serverTimestamp() }));
 });
 
 test('los pedidos no se borran', async () => {
   await seedFamily({ childUid: CHILD });
-  const ref = await addDoc(collection(anon(CHILD), 'families', FID, 'requests'), request(CHILD));
+  const ref = await addDoc(requests(anon(CHILD)), request(CHILD));
   await assertFails(deleteDoc(doc(google(OWNER), 'families', FID, 'requests', ref.id)));
 });
 
@@ -326,4 +335,34 @@ test('no existe ninguna colección para guardar mareas, diario o respuestas', as
   await seedFamily({ childUid: CHILD });
   await assertFails(setDoc(doc(anon(CHILD), 'mareas', 'x'), { type: 'TORMENTA' }));
   await assertFails(setDoc(doc(anon(CHILD), 'families', FID, 'diario', 'x'), { text: 'secreto' }));
+});
+
+// ------------------------------------------------------------------ Compartir mi semana
+
+const week = (extra = {}) => ({
+  weekStart: '2026-11-02', counts: { TRANQUILA: 2, ALTA: 1 }, daysWithRecord: 3, updatedAt: serverTimestamp(), ...extra,
+});
+
+test('el niño comparte su semana (solo conteos) y sus adultos la leen', async () => {
+  await seedFamily({ childUid: CHILD });
+  await assertSucceeds(setDoc(doc(anon(CHILD), 'families', FID, 'shared', 'week'), week()));
+  await assertSucceeds(getDoc(doc(google(OWNER), 'families', FID, 'shared', 'week')));
+  await assertFails(getDoc(doc(google(STRANGER), 'families', FID, 'shared', 'week')));
+});
+
+test('la semana compartida no admite notas, contexto ni conteos inventados', async () => {
+  await seedFamily({ childUid: CHILD });
+  const ref = doc(anon(CHILD), 'families', FID, 'shared', 'week');
+  await assertFails(setDoc(ref, week({ nota: 'me siento triste' })));
+  await assertFails(setDoc(ref, week({ counts: { TORMENTA: 1, FAMILIA: 2 } })));
+  await assertFails(setDoc(ref, week({ counts: { ALTA: 'muchas' } })));
+  await assertFails(setDoc(ref, week({ daysWithRecord: 9 })));
+});
+
+test('solo el niño escribe su semana y puede dejar de compartirla', async () => {
+  await seedFamily({ childUid: CHILD });
+  await assertFails(setDoc(doc(google(OWNER), 'families', FID, 'shared', 'week'), week()));
+  await setDoc(doc(anon(CHILD), 'families', FID, 'shared', 'week'), week());
+  await assertFails(deleteDoc(doc(google(OWNER), 'families', FID, 'shared', 'week')));
+  await assertSucceeds(deleteDoc(doc(anon(CHILD), 'families', FID, 'shared', 'week')));
 });
