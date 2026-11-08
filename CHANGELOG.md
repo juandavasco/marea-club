@@ -1,5 +1,34 @@
 # Cambios
 
+## Actualización integral — entregas 3, 4 y 5 (7 nov 2026)
+
+### Cuentas y vínculo familiar (entrega 3)
+- Al instalar se elige quién usa el teléfono: **niño o niña** (sin cuenta) o **adulto** (cuenta de Google).
+- El adulto crea el espacio de la familia (con un apodo opcional para el niño), genera **códigos de vínculo** para el niño y para un **segundo adulto** (máximo dos), y puede desvincular.
+- Códigos aleatorios de 8 caracteres sin caracteres confusos, válidos **10 minutos** según la hora del servidor y de **un solo uso**. En la nube solo se guarda su SHA-256.
+- Límite de intentos: tras 5 códigos inválidos en un teléfono, esperas crecientes.
+- El niño se vincula desde **menú ⋯ › Mi familia**, ve con quién está vinculado y qué puede y no puede ver su adulto, y puede salir de la familia.
+- **PIN del niño** (4 a 6 dígitos, sin secuencias obvias), guardado como hash PBKDF2 con sal; esperas crecientes tras 5 intentos; si lo olvida, el adulto le genera un código nuevo.
+- **Firebase** (plan Spark gratuito): Authentication (Google y anónimo) y Firestore. Sin Cloud Functions: toda la validación está en las **reglas de seguridad** (`firebase/firestore.rules`), probadas con el emulador en GitHub Actions.
+- La app ahora usa internet **solo** para el vínculo, Mis salvavidas y, si el niño lo activa, el resumen de su semana. Mareas, notas, diario, respuestas e isla siguen cifrados solo en el teléfono.
+
+### Mis salvavidas y perfil del adulto (entrega 4)
+- El niño vinculado avisa a **uno o a ambos** adultos con el mensaje «Necesito que estés conmigo. Cuando puedas, ven a acompañarme». Decir qué necesita es opcional (hablar, compañía, ayuda práctica, simplemente estar acompañado).
+- Estado real del pedido por adulto: aún no lo ha visto, lo vio, va en camino, no puede. A los **15 minutos** sin respuesta se sugiere buscar a otro adulto o llamar a una línea. Se puede cancelar o cerrar.
+- Sin conexión se avisa y el pedido no queda en cola.
+- Solo el adulto destinatario puede leer cada pedido.
+- **Compartir mi semana**: apagado por defecto; si el niño lo activa, el adulto ve solo cuántas mareas de cada tipo hubo y en cuántos días. Al apagarlo, salir o desvincular se borra de la nube.
+- Perfil del adulto con pestañas **Resumen** (pedidos y semana compartida), **Familia** y **Configuración**.
+
+### Bitácora y Conexión familiar (entrega 5)
+- **Bitácora del acompañamiento**: 4 recorridos y 5 experiencias con objetivo, situación, reflexión (cada opción con un comentario, sin puntajes), aprendizaje y aplicación cotidiana. Nada de lo elegido se guarda.
+- **Conexión familiar**: 5 guías voluntarias para hacer en persona (5 a 15 minutos). El adulto las ve en su pestaña; el niño vinculado, en Actividades › Con mi familia. No se registra la participación.
+- Contenidos marcados como borrador pendiente de revisión psicológica.
+
+### Limitaciones conocidas
+- **Sin notificaciones push**: en el plan gratuito no hay servidor que las envíe. El adulto ve los pedidos al abrir la app (se dice en pantalla).
+- El límite de intentos de códigos es por teléfono; un límite global en el servidor necesitaría Cloud Functions o App Check (plan Blaze).
+
 ## Actualización integral — entregas 1 y 2 (7 nov 2026)
 
 Sigue el Prompt Maestro y el Documento Técnico Integral v1.0 (5 nov 2026). Decisiones del 7 nov: Firebase Spark (gratis), respuestas privadas solo en el teléfono del niño, reubicar las herramientas existentes y retirar Autoevaluación y Consulta anónima.

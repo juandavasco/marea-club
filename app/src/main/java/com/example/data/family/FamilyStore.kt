@@ -47,6 +47,15 @@ class FamilyStore(context: Context) {
         get() = prefs.getInt(KEY_PIN_FAILED, 0)
         set(value) = prefs.edit().putInt(KEY_PIN_FAILED, value).apply()
 
+    /** Intentos fallidos de código de vínculo en este teléfono (límite local de intentos). */
+    var codeFailures: Int
+        get() = prefs.getInt(KEY_CODE_FAILED, 0)
+        set(value) = prefs.edit().putInt(KEY_CODE_FAILED, value).apply()
+
+    var codeLockedUntil: Long
+        get() = prefs.getLong(KEY_CODE_LOCKED_UNTIL, 0)
+        set(value) = prefs.edit().putLong(KEY_CODE_LOCKED_UNTIL, value).apply()
+
     var lockedUntil: Long
         get() = prefs.getLong(KEY_PIN_LOCKED_UNTIL, 0)
         set(value) = prefs.edit().putLong(KEY_PIN_LOCKED_UNTIL, value).apply()
@@ -59,5 +68,7 @@ class FamilyStore(context: Context) {
         private const val KEY_PIN_SALT = "pin_salt"
         private const val KEY_PIN_FAILED = "pin_failed_attempts"
         private const val KEY_PIN_LOCKED_UNTIL = "pin_locked_until"
+        private const val KEY_CODE_FAILED = "code_failed_attempts"
+        private const val KEY_CODE_LOCKED_UNTIL = "code_locked_until"
     }
 }

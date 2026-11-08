@@ -241,14 +241,28 @@ class FamilyViewModel @JvmOverloads constructor(
             _message.value = "El código tiene 8 letras y números, por ejemplo K7QX-M2PA."
             return@work
         }
+        // Límite de intentos en este teléfono: tras 5 códigos que no sirven, esperas crecientes.
+        val now = clock()
+        if (store.codeLockedUntil > now) {
+            _message.value = "Probaste varios códigos que no sirven. Espera ${((store.codeLockedUntil - now) / 1000 + 59) / 60} min y pide a tu adulto un código nuevo."
+            return@work
+        }
         if (role == LinkRole.CHILD) backend.signInAnonymously()
         when (val result = backend.redeemLinkCode(LinkCode.hash(normalized), role, displayName)) {
             is LinkResult.Linked -> {
+                store.codeFailures = 0
+                store.codeLockedUntil = 0
                 linkedTo(result.familyId)
                 onLinked()
             }
-            LinkResult.InvalidCode -> _message.value =
-                "Ese código no sirve: puede que esté mal escrito, que ya se haya usado o que hayan pasado más de 10 minutos. Pide uno nuevo."
+            LinkResult.InvalidCode -> {
+                val failures = store.codeFailures + 1
+                store.codeFailures = failures
+                val wait = PinRules.lockoutMillis(failures)
+                if (wait > 0) store.codeLockedUntil = now + wait
+                _message.value =
+                    "Ese código no sirve: puede que esté mal escrito, que ya se haya usado o que hayan pasado más de 10 minutos. Pide uno nuevo."
+            }
             LinkResult.NoConnection -> _message.value = NO_CONNECTION
         }
     }

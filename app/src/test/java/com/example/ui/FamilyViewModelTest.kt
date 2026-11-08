@@ -211,4 +211,18 @@ class FamilyViewModelTest {
         assertFalse(a.family.value!!.hasChild)
         assertNull(c.role.value)
     }
+
+    @Test
+    fun `tras 5 codigos invalidos hay que esperar antes de probar otro`() {
+        val a = adultWithFamily()
+        val c = child()
+        repeat(5) { c.childRedeem("K7QX-M2P${"ABCDE"[it]}", "N"); idle() }
+        val good = a.newCode()
+        c.childRedeem(good, "N"); idle()
+        assertTrue(c.message.value!!.contains("Espera"))
+        assertFalse(c.isChildLinked(c.family.value))
+        now += 31_000
+        c.childRedeem(good, "N"); idle()
+        assertTrue(c.isChildLinked(c.family.value))
+    }
 }

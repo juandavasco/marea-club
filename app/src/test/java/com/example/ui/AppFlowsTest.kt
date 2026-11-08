@@ -332,7 +332,8 @@ class AppFlowsTest {
     fun `mis salvavidas - el nino vinculado pide compania y ve la respuesta real del adulto`() {
         linkChildThroughUi()
         click("home_salvavidas")
-        tag("salvavidas_request_button").assertIsNotEnabled()
+        // Decir qué necesita es opcional: el botón ya está activo
+        tag("salvavidas_request_button").assertIsEnabled()
         click("salvavidas_reason_compania")
         click("salvavidas_request_button")
         tag("salvavidas_status_enviada").assertExists()

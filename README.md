@@ -27,26 +27,33 @@ Marea Club ayuda a chicos y chicas de 11 a 14 años a reconocer cómo se sienten
 
 ## Privacidad (resumen)
 
-- Todo se guarda **cifrado y solo en el teléfono** (Tink, AES-256-GCM con Android Keystore).
-- La app **no tiene permiso de internet**, no usa cuentas y no hace copia de seguridad en la nube.
+- Mareas, notas, diario, respuestas de las actividades e isla se guardan **cifrados y solo en el teléfono** del niño (Tink, AES-256-GCM con Android Keystore), sin copia de seguridad en la nube.
+- Internet se usa **solo** para el vínculo familiar, los pedidos de «Mis salvavidas» y, si el niño lo activa, un conteo de sus mareas de la semana. El niño no necesita correo ni cuenta.
+- Las **reglas de seguridad de Firestore** (`firebase/firestore.rules`) deciden en el servidor quién puede leer y escribir cada cosa; tienen pruebas automáticas con el emulador.
 - El usuario puede borrar un registro o **todos sus datos** desde el menú (con confirmación).
-- La consulta anónima es una **demostración**: ninguna persona lee los mensajes, y la app lo dice en pantalla.
+
+## Firebase (plan Spark, gratis)
+
+Proyecto `marea-club`: Authentication (Google para adultos, anónimo para el niño) y Cloud Firestore en `southamerica-east1`.
+Para publicar las reglas: Firebase Console › Firestore Database › **Reglas** › pegar el contenido de `firebase/firestore.rules` › **Publicar**.
+Para probarlas localmente: `cd firebase && npm ci && npm test` (necesita Java 21; usa el emulador, no toca el proyecto real).
 
 ## Estructura
 
 | Carpeta | Contenido |
 | --- | --- |
 | `app/src/main/java/com/example/domain` | Reglas sin Android: actividades con propósito, objetos de la isla, resumen semanal, seguridad |
-| `app/src/main/java/com/example/data` | Contenido fijo (`MareaContent`), almacenamiento cifrado (`MareaRepository`) |
+| `app/src/main/java/com/example/data` | Contenido fijo (`MareaContent`), almacenamiento cifrado (`MareaRepository`), vínculo familiar con Firebase (`family/`) |
 | `app/src/main/java/com/example/ui` | Pantallas y diálogos (Jetpack Compose) |
 | `app/src/test` | Pruebas automáticas (JUnit, Robolectric, Compose UI Test) |
+| `firebase/` | Reglas de seguridad de Firestore y sus pruebas con el emulador |
 | `design-originals/` | Archivos originales del equipo (Muni, ilustraciones, manual de marca). No van en la app |
 | `docs/` | Referencias, rutas por verificar, validaciones humanas pendientes |
 | `tools/` | Scripts para regenerar los sonidos y los recortes de imagen |
 
 ## Herramientas (todas gratuitas)
 
-Android Studio, Kotlin, Jetpack Compose, Tink, JUnit, Robolectric, Android Lint y GitHub Actions (repositorio público).
+Android Studio, Kotlin, Jetpack Compose, Tink, Firebase (plan Spark), JUnit, Robolectric, emulador de Firestore, Android Lint y GitHub Actions (repositorio público).
 
 ## Estado y pendientes
 
