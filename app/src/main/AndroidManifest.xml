@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
-    <!-- Sin permiso de INTERNET: los datos nunca salen del teléfono (§15) -->
+    <!-- Internet solo para el vínculo familiar y Mis salvavidas (Firebase). Los datos emocionales
+         nunca salen del teléfono: siguen cifrados localmente y sin copia de seguridad. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <queries>
         <intent>

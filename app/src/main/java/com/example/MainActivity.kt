@@ -16,6 +16,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.*
+import com.example.data.family.DeviceRole
+import com.example.ui.FamilyViewModel
 import com.example.ui.MareaViewModel
 import com.example.ui.components.MareaBottomBar
 import com.example.ui.components.MareaHeader
@@ -24,32 +26,42 @@ import com.example.ui.components.MareaSpace
 import com.example.ui.components.MareaTopBar
 import com.example.ui.dialogs.*
 import com.example.ui.screens.*
+import com.example.ui.screens.family.*
 import com.example.ui.theme.MareaBackground
 import com.example.ui.theme.MareaClubTheme
 
 /** Pantallas que se abren encima de las pestañas. */
 enum class SubScreen {
     SALVAVIDAS,
-    DIRECTORY
+    DIRECTORY,
+    FAMILY
 }
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MareaViewModel by viewModels()
+    private val family: FamilyViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             MareaClubTheme {
-                MareaClubApp(viewModel = viewModel)
+                MareaClubApp(viewModel = viewModel, family = family)
             }
         }
     }
 }
 
 @Composable
-fun MareaClubApp(viewModel: MareaViewModel) {
+fun MareaClubApp(viewModel: MareaViewModel, family: FamilyViewModel) {
     val isOnboarded by viewModel.isOnboarded.collectAsStateWithLifecycle()
+    val role by family.role.collectAsStateWithLifecycle()
+    val familyInfo by family.family.collectAsStateWithLifecycle()
+    val hasPin by family.hasPin.collectAsStateWithLifecycle()
+    val unlocked by family.unlocked.collectAsStateWithLifecycle()
+    val needsPinSetup by family.needsPinSetup.collectAsStateWithLifecycle()
+    val childLinked = family.isChildLinked(familyInfo)
+    val safe = Modifier.windowInsetsPadding(WindowInsets.safeDrawing)
     var forceShowWelcome by remember { mutableStateOf(false) }
     var activeSubScreen by remember { mutableStateOf<SubScreen?>(null) }
     /** 0 = Registrar, 1 = Mi semana (dentro de la pestaña Mareas). */
@@ -98,6 +110,7 @@ fun MareaClubApp(viewModel: MareaViewModel) {
             activeGuided != null -> viewModel.closeGuided()
             activeTool != null -> viewModel.closeTool()
             activeSubScreen == SubScreen.DIRECTORY -> activeSubScreen = SubScreen.SALVAVIDAS
+            activeSubScreen == SubScreen.FAMILY -> activeSubScreen = null
             activeSubScreen != null -> activeSubScreen = null
             currentTab != BottomNavTab.HOME -> viewModel.selectTab(BottomNavTab.HOME)
         }
@@ -111,6 +124,30 @@ fun MareaClubApp(viewModel: MareaViewModel) {
             }
         )
         return
+    }
+
+    // 0. Quién usa este teléfono, perfil de adulto y PIN del niño (entrega 3)
+    when {
+        role == null -> {
+            RoleChoiceScreen(
+                onChild = { family.setRole(DeviceRole.CHILD) },
+                onAdult = { family.setRole(DeviceRole.ADULT) },
+                modifier = safe
+            )
+            return
+        }
+        role == DeviceRole.ADULT -> {
+            AdultApp(family = family, modifier = safe)
+            return
+        }
+        needsPinSetup -> {
+            PinSetupScreen(family = family, modifier = safe)
+            return
+        }
+        hasPin && !unlocked -> {
+            PinEntryScreen(family = family, userName = userName, modifier = safe)
+            return
+        }
     }
 
     // 1. Actividad con propósito en curso
@@ -140,8 +177,13 @@ fun MareaClubApp(viewModel: MareaViewModel) {
     when (activeSubScreen) {
         SubScreen.SALVAVIDAS -> {
             SalvavidasScreen(
-                // Entrega 3–4: vínculo real con Firebase. Hasta entonces no hay adulto vinculado.
+                // El envío real de pedidos llega en la entrega 4: no se simula.
                 onRequestCompanion = null,
+                unavailableText = if (childLinked)
+                    "Ya estás vinculado con ${familyInfo?.adultNameList()?.joinToString(" y ").orEmpty()}. El envío de pedidos se activa en la próxima actualización de la app; mientras tanto, usa las líneas de abajo o búscalo en persona."
+                else
+                    "Todavía no tienes un adulto vinculado. Pídele a un adulto de tu familia un código para vincular tu perfil.",
+                onOpenFamily = if (childLinked) null else ({ activeSubScreen = SubScreen.FAMILY }),
                 onOpenAllLines = { activeSubScreen = SubScreen.DIRECTORY },
                 onBack = { activeSubScreen = null },
                 modifier = Modifier
@@ -157,6 +199,15 @@ fun MareaClubApp(viewModel: MareaViewModel) {
                 favoriteIds = favoriteRouteIds,
                 onToggleFavorite = { viewModel.toggleFavoriteRoute(it) },
                 onBack = { activeSubScreen = SubScreen.SALVAVIDAS }
+            )
+            return
+        }
+        SubScreen.FAMILY -> {
+            ChildFamilyScreen(
+                family = family,
+                userName = userName,
+                onBack = { activeSubScreen = null },
+                modifier = safe
             )
             return
         }
@@ -276,6 +327,7 @@ fun MareaClubApp(viewModel: MareaViewModel) {
             onDismiss = { viewModel.setMenuDialogVisible(false) },
             onOpenArchivo = { viewModel.setArchivoCorrientesVisible(true) },
             onOpenSupport = { activeSubScreen = SubScreen.SALVAVIDAS },
+            onOpenFamily = { activeSubScreen = SubScreen.FAMILY },
             onReplayWelcome = { forceShowWelcome = true },
             onOpenPrivacy = { showPrivacyDialog = true },
             onResetData = { showResetDialog = true }
@@ -292,6 +344,7 @@ fun MareaClubApp(viewModel: MareaViewModel) {
                 showResetDialog = false
                 activeSubScreen = null
                 mareaSegment = 0
+                family.onLocalReset()
                 viewModel.resetAllData()
             },
             onDismiss = { showResetDialog = false }

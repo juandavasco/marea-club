@@ -28,6 +28,7 @@ fun MenuDotsDialog(
     onDismiss: () -> Unit,
     onOpenArchivo: () -> Unit,
     onOpenSupport: () -> Unit,
+    onOpenFamily: () -> Unit,
     onReplayWelcome: () -> Unit,
     onOpenPrivacy: () -> Unit = {},
     onResetData: () -> Unit = {}
@@ -72,6 +73,19 @@ fun MenuDotsDialog(
                     onClick = {
                         onDismiss()
                         onOpenArchivo()
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                MenuItemRow(
+                    icon = Icons.Default.People,
+                    title = "Mi familia",
+                    subtitle = "Vincular tu perfil con un adulto de confianza",
+                    tag = "menu_family_button",
+                    onClick = {
+                        onDismiss()
+                        onOpenFamily()
                     }
                 )
 

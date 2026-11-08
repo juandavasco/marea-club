@@ -7,6 +7,10 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import com.example.MareaClubApp
 import com.example.data.MareaRepository
+import com.example.data.family.FakeFamilyBackend
+import com.example.data.family.FakeServer
+import com.example.data.family.LinkRole
+import com.example.domain.LinkCode
 import com.example.model.MareaType
 import com.example.ui.theme.MareaClubTheme
 import org.junit.Before
@@ -29,13 +33,16 @@ class AppFlowsTest {
     val compose = createComposeRule()
 
     private lateinit var viewModel: MareaViewModel
+    private lateinit var family: FamilyViewModel
+    private val server = FakeServer()
 
     @Before
     fun setUp() {
         val app = ApplicationProvider.getApplicationContext<Application>()
         app.getSharedPreferences(MareaRepository.PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
         viewModel = MareaViewModel(app)
-        compose.setContent { MareaClubTheme { MareaClubApp(viewModel = viewModel) } }
+        family = FamilyViewModel(app, backendFactory = { FakeFamilyBackend(server) })
+        compose.setContent { MareaClubTheme { MareaClubApp(viewModel = viewModel, family = family) } }
     }
 
     private fun tag(t: String) = compose.onNodeWithTag(t, useUnmergedTree = true)
@@ -48,7 +55,22 @@ class AppFlowsTest {
         compose.waitForIdle()
     }
 
-    private fun startApp() = click("welcome_start_button")
+    private fun startApp() {
+        click("welcome_start_button")
+        click("role_child")
+    }
+
+    /** Un adulto (en otro "teléfono") crea la familia y genera un código. Devuelve el código. */
+    private fun adultCreatesCode(): String {
+        val adult = FakeFamilyBackend(server, "Juan")
+        return kotlinx.coroutines.runBlocking {
+            adult.signInWithGoogle("juan")
+            val fid = adult.createFamily("Juan", "Navegante")
+            val code = LinkCode.generate()
+            adult.publishLinkCode(fid, LinkRole.CHILD, LinkCode.hash(code))
+            code
+        }
+    }
 
     private fun goToMareas() {
         tag("tab_marea").performClick()
@@ -233,5 +255,59 @@ class AppFlowsTest {
         compose.waitForIdle()
         tag("welcome_start_button").assertExists()
         assert(viewModel.logs.value.isEmpty())
+    }
+
+    // ------------------------------------------------------------------ entrega 3
+
+    @Test
+    fun `instalacion nueva pregunta quien usa el telefono`() {
+        click("welcome_start_button")
+        tag("role_child").assertExists()
+        click("role_adult")
+        tag("adult_google_button").assertExists()
+        tag("privacy_what_adult_sees").assertExists()
+        click("header_back_button")
+        tag("role_child").assertExists()
+    }
+
+    @Test
+    fun `el nino se vincula con el codigo del adulto, crea su PIN y puede ver con quien`() {
+        val code = adultCreatesCode()
+        startApp()
+        tag("menu_dots_button").performClick()
+        click("menu_family_button")
+        tag("child_code_input").performTextInput(LinkCode.format(code))
+        click("child_link_button")
+        // Debe crear su PIN antes de seguir
+        tag("pin_new").performTextInput("1234")
+        tag("pin_confirm").performTextInput("1234")
+        click("pin_save")
+        tag("pin_problem").assertExists()
+        tag("pin_new").performTextClearance(); tag("pin_new").performTextInput("2580")
+        tag("pin_confirm").performTextClearance(); tag("pin_confirm").performTextInput("2580")
+        click("pin_save")
+        tag("child_linked_card").assertExists()
+        compose.onNodeWithText("Vinculado con Juan").assertExists()
+        assert(server.families.values.single().childUid != null)
+    }
+
+    @Test
+    fun `codigo invalido muestra una explicacion`() {
+        startApp()
+        tag("menu_dots_button").performClick()
+        click("menu_family_button")
+        tag("child_code_input").performTextInput("K7QX-M2PA")
+        click("child_link_button")
+        tag("family_message").assertExists()
+        tag("child_linked_card").assertDoesNotExist()
+    }
+
+    @Test
+    fun `sin adulto vinculado, Mis salvavidas lleva a vincularse`() {
+        startApp()
+        click("home_salvavidas")
+        tag("salvavidas_request_button").assertIsNotEnabled()
+        click("salvavidas_open_family")
+        tag("child_code_input").assertExists()
     }
 }

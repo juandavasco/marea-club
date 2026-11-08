@@ -12,6 +12,9 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import com.example.MareaClubApp
 import com.example.data.MareaRepository
+import com.example.data.family.FakeFamilyBackend
+import com.example.data.family.FakeServer
+import com.example.ui.FamilyViewModel
 import com.example.ui.MareaViewModel
 import com.example.ui.theme.MareaClubTheme
 import org.junit.Before
@@ -38,6 +41,7 @@ class ScreenshotTest {
     val compose = createAndroidComposeRule<ComponentActivity>()
 
     private lateinit var viewModel: MareaViewModel
+    private lateinit var family: FamilyViewModel
     private val outDir = File("build/screenshots").apply { mkdirs() }
 
     @Before
@@ -45,7 +49,8 @@ class ScreenshotTest {
         val app = ApplicationProvider.getApplicationContext<Application>()
         app.getSharedPreferences(MareaRepository.PREFS_NAME, Context.MODE_PRIVATE).edit().clear().commit()
         viewModel = MareaViewModel(app)
-        compose.setContent { MareaClubTheme { MareaClubApp(viewModel = viewModel) } }
+        family = FamilyViewModel(app, backendFactory = { FakeFamilyBackend(FakeServer()) })
+        compose.setContent { MareaClubTheme { MareaClubApp(viewModel = viewModel, family = family) } }
     }
 
     private fun shot(name: String) {
@@ -61,6 +66,9 @@ class ScreenshotTest {
 
     private fun enter() {
         tag("welcome_start_button").performScrollTo().performClick()
+        compose.waitForIdle()
+        shot("01b-quien-usa")
+        tag("role_child").performScrollTo().performClick()
         compose.waitForIdle()
     }
 

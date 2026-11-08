@@ -1,0 +1,184 @@
+rules_version = '2';
+
+// Reglas de seguridad de Marea Club (plan Spark: no hay Cloud Functions,
+// así que TODA la validación del vínculo familiar ocurre aquí, en el servidor).
+//
+// Qué se guarda en la nube: solo el vínculo (familia, adultos, perfil del niño con un alias)
+// y los pedidos de "Mis salvavidas". Las mareas, el diario, las respuestas de las actividades
+// y la isla NUNCA se suben: quedan cifrados en el teléfono del niño.
+//
+// Pruebas: firebase/tests/rules.test.mjs (se ejecutan en GitHub Actions con el emulador).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------ utilidades
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function isGoogle() { return signedIn() && request.auth.token.firebase.sign_in_provider == 'google.com'; }
+    function familyPath(fid) { return /databases/$(database)/documents/families/$(fid); }
+    function codePath(cid) { return /databases/$(database)/documents/linkCodes/$(cid); }
+    function family(fid) { return get(familyPath(fid)).data; }
+    function familyAfter(fid) { return getAfter(familyPath(fid)).data; }
+    function isAdultOf(fid) { return signedIn() && uid() in family(fid).adultUids; }
+    function isChildOf(fid) { return signedIn() && family(fid).childUid == uid(); }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+    // Los códigos vencen 10 minutos después de creados, según la hora del servidor
+    // (no se confía en el reloj del teléfono).
+    function notExpired(c) { return request.time < c.createdAt + duration.value(10, 'm'); }
+
+    // Un código es válido si existe, no se usó, no venció y es de esta familia y este rol.
+    function codeValid(cid, fid, role) {
+      let c = get(codePath(cid)).data;
+      return c.familyId == fid && c.role == role && c.used == false && notExpired(c);
+    }
+    // ...y si en la misma operación queda marcado como usado por quien se vincula.
+    function codeConsumedByMe(cid) {
+      let c = getAfter(codePath(cid)).data;
+      return c.used == true && c.usedBy == uid();
+    }
+
+    // ------------------------------------------------------------------ familias
+    match /families/{fid} {
+      allow read: if signedIn() && (uid() in resource.data.adultUids || resource.data.childUid == uid());
+
+      // Solo un adulto con cuenta de Google crea una familia, y empieza solo.
+      allow create: if isGoogle()
+        && request.resource.data.keys().hasOnly(['ownerUid', 'adultUids', 'adultNames', 'childUid', 'childName', 'createdAt', 'lastLinkCode'])
+        && request.resource.data.ownerUid == uid()
+        && request.resource.data.adultUids == [uid()]
+        && request.resource.data.adultNames is map
+        && request.resource.data.childUid == null
+        && request.resource.data.childName is string && request.resource.data.childName.size() <= 30
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.lastLinkCode == '';
+
+      allow update: if linkChild(fid) || linkSecondAdult(fid) || adultEdit(fid) || childLeaves(fid);
+
+      // El niño se vincula con un código de rol "child" (o vuelve a vincularse desde otro teléfono).
+      function linkChild(fid) {
+        return signedIn()
+          && changed().hasOnly(['childUid', 'lastLinkCode'])
+          && request.resource.data.childUid == uid()
+          && codeValid(request.resource.data.lastLinkCode, fid, 'child')
+          && codeConsumedByMe(request.resource.data.lastLinkCode);
+      }
+
+      // Un segundo adulto (con Google) se vincula con un código de rol "adult". Máximo 2 adultos.
+      function linkSecondAdult(fid) {
+        return isGoogle()
+          && !(uid() in resource.data.adultUids)
+          && changed().hasOnly(['adultUids', 'adultNames', 'lastLinkCode'])
+          && resource.data.adultUids.size() < 2
+          && request.resource.data.adultUids == resource.data.adultUids.concat([uid()])
+          && request.resource.data.adultNames.diff(resource.data.adultNames).affectedKeys().hasOnly([uid()])
+          && codeValid(request.resource.data.lastLinkCode, fid, 'adult')
+          && codeConsumedByMe(request.resource.data.lastLinkCode);
+      }
+
+      // Un adulto de la familia puede: cambiar el alias del niño, desvincular al niño,
+      // retirarse él mismo (el segundo adulto) o, si es el dueño, retirar al segundo adulto.
+      function adultEdit(fid) {
+        let before = resource.data;
+        let after = request.resource.data;
+        return signedIn() && uid() in before.adultUids
+          && changed().hasOnly(['childName', 'childUid', 'adultUids', 'adultNames'])
+          && after.ownerUid == before.ownerUid
+          && (after.childUid == before.childUid || after.childUid == null)
+          && (after.childName is string && after.childName.size() <= 30)
+          && (after.adultUids == before.adultUids
+              || (uid() == before.ownerUid && after.adultUids == [before.ownerUid])
+              || (uid() != before.ownerUid && after.adultUids == before.adultUids.removeAll([uid()])));
+      }
+
+      // El niño puede salir de la familia en cualquier momento.
+      function childLeaves(fid) {
+        return signedIn() && resource.data.childUid == uid()
+          && changed().hasOnly(['childUid'])
+          && request.resource.data.childUid == null;
+      }
+
+      allow delete: if signedIn() && resource.data.ownerUid == uid();
+
+      // -------------------------------------------------------------- Mis salvavidas
+      // El niño solo envía "Necesito acompañamiento": sin texto libre, sin emociones.
+      match /requests/{rid} {
+        allow read: if isAdultOf(fid) || isChildOf(fid);
+
+        allow create: if isChildOf(fid)
+          && request.resource.data.keys().hasOnly(['childUid', 'createdAt', 'status', 'respondedBy', 'respondedAt'])
+          && request.resource.data.childUid == uid()
+          && request.resource.data.createdAt == request.time
+          && request.resource.data.status == 'enviada'
+          && request.resource.data.respondedBy == null
+          && request.resource.data.respondedAt == null;
+
+        // El adulto responde con una de tres opciones; el niño puede cancelar su pedido.
+        allow update: if (isAdultOf(fid)
+            && changed().hasOnly(['status', 'respondedBy', 'respondedAt'])
+            && request.resource.data.status in ['vista', 'voy', 'no_puedo']
+            && request.resource.data.respondedBy == uid()
+            && request.resource.data.respondedAt == request.time)
+          || (isChildOf(fid)
+            && resource.data.childUid == uid()
+            && changed().hasOnly(['status'])
+            && request.resource.data.status == 'cancelada');
+
+        allow delete: if false;
+      }
+    }
+
+    // ------------------------------------------------------------------ códigos de vínculo
+    // El ID del documento es el SHA-256 del código: el código en claro nunca se guarda.
+    match /linkCodes/{cid} {
+      // Hay que conocer el código exacto para leerlo; no se pueden listar.
+      allow get: if signedIn();
+      allow list: if false;
+
+      // Lo crea un adulto de la familia; dura 10 minutos desde createdAt (hora del servidor).
+      // Solo el dueño crea códigos para un segundo adulto, y solo si aún no hay dos.
+      allow create: if isGoogle()
+        && request.resource.data.keys().hasOnly(['familyId', 'role', 'createdBy', 'createdAt', 'used', 'usedBy'])
+        && isAdultOf(request.resource.data.familyId)
+        && request.resource.data.createdBy == uid()
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.used == false
+        && request.resource.data.usedBy == null
+        && (request.resource.data.role == 'child'
+            || (request.resource.data.role == 'adult'
+                && family(request.resource.data.familyId).ownerUid == uid()
+                && family(request.resource.data.familyId).adultUids.size() < 2));
+
+      // Se usa una sola vez, antes de vencer, y solo junto con el vínculo en la familia.
+      allow update: if signedIn()
+        && resource.data.used == false
+        && notExpired(resource.data)
+        && changed().hasOnly(['used', 'usedBy'])
+        && request.resource.data.used == true
+        && request.resource.data.usedBy == uid()
+        && familyAfter(resource.data.familyId).lastLinkCode == cid
+        && (resource.data.role == 'child'
+            ? familyAfter(resource.data.familyId).childUid == uid()
+            : uid() in familyAfter(resource.data.familyId).adultUids);
+
+      allow delete: if signedIn() && resource.data.createdBy == uid();
+    }
+
+    // ------------------------------------------------------------------ perfiles
+    // Cada persona solo ve y edita su propio perfil, y debe pertenecer a la familia que dice.
+    match /users/{userId} {
+      allow read: if signedIn() && uid() == userId;
+      allow create, update: if signedIn() && uid() == userId
+        && request.resource.data.keys().hasOnly(['role', 'familyId', 'displayName'])
+        && request.resource.data.displayName is string && request.resource.data.displayName.size() <= 30
+        && ((request.resource.data.role == 'adult' && uid() in familyAfter(request.resource.data.familyId).adultUids)
+            || (request.resource.data.role == 'child' && familyAfter(request.resource.data.familyId).childUid == uid()));
+      allow delete: if signedIn() && uid() == userId;
+    }
+
+    // Todo lo demás está cerrado.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

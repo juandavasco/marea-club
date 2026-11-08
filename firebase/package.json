@@ -1,0 +1,14 @@
+{
+  "name": "marea-club-firebase",
+  "private": true,
+  "type": "module",
+  "description": "Pruebas de las reglas de seguridad de Firestore (se ejecutan con el emulador gratuito).",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore --project demo-marea-club \"node --test tests/\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.10.0",
+    "firebase-tools": "^14.11.0"
+  }
+}

@@ -49,5 +49,6 @@ object ScreenshotRoutes {
         // Mis salvavidas
         tag("tab_home").performClick()
         click("home_salvavidas"); shot("16-salvavidas")
+        click("salvavidas_open_family"); shot("17-mi-familia")
     }
 }

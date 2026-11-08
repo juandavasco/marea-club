@@ -73,3 +73,33 @@ jobs:
           path: |
             app/build/reports/
             app/build/test-results/
+
+  reglas:
+    name: Reglas de seguridad de Firestore (emulador)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: firebase
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: firebase/package-lock.json
+
+      - name: Java 21 (para el emulador de Firestore)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Instalar herramientas
+        run: npm ci --no-audit --no-fund
+
+      - name: Probar las reglas
+        run: npm test
+

@@ -15,7 +15,8 @@ import org.json.JSONObject
 /**
  * Almacenamiento local de Marea Club.
  *
- * - Todo queda en el teléfono: la app no usa internet ni copia de seguridad en la nube.
+ * - Todo queda en el teléfono, sin copia de seguridad en la nube. Internet solo se usa para el vínculo
+ *   familiar y Mis salvavidas (ver data/family), nunca para estos datos.
  * - Los datos emocionales (registros, reflexiones, diario, objetos de la isla, actividades) se guardan cifrados.
  * - Las reglas (isla, resumen semanal, orientación) viven en el paquete `domain` y tienen pruebas propias.
  */

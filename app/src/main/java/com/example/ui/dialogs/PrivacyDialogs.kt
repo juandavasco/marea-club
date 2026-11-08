@@ -19,9 +19,9 @@ import com.example.ui.theme.*
 object PrivacyText {
     const val TITLE = "Tus datos se quedan contigo"
     val POINTS = listOf(
-        "Lo que registras (mareas, notas, diario, reflexiones y consultas) se guarda cifrado solo en este teléfono.",
-        "La app no usa internet, no tiene cuentas y no hace copia de seguridad en la nube.",
-        "Nadie del equipo, ni tu familia, ni tu colegio puede ver lo que escribes desde otro teléfono.",
+        "Lo que registras (mareas, notas, diario, respuestas de las actividades y tu isla) se guarda cifrado solo en este teléfono, sin copia en la nube.",
+        "Si te vinculas con tu familia, en internet solo se guarda el vínculo (un apodo, sin correo ni teléfono) y tus pedidos de «Mis salvavidas».",
+        "Ni tu familia, ni el equipo, ni tu colegio pueden ver lo que registras o escribes.",
         "Puedes borrar un registro o todos tus datos cuando quieras desde el menú.",
         "Marea Club acompaña, pero no diagnostica ni reemplaza a un profesional. Si necesitas ayuda, usa las rutas de apoyo.",
         "Si tienes menos de 18 años, cuéntale a tu acudiente que usas Marea Club."

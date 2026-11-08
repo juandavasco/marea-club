@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "84109207653",
+    "project_id": "marea-club",
+    "storage_bucket": "marea-club.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:84109207653:android:64995309308311c7defe8c",
+        "android_client_info": {
+          "package_name": "com.aistudio.mareaclub.mpkvrz"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "84109207653-ckbrme8uiffqcpvkp985d8r9a3bl7529.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.aistudio.mareaclub.mpkvrz",
+            "certificate_hash": "258dfc16b4dcc2bb4a3fb13149c474671484ebde"
+          }
+        },
+        {
+          "client_id": "84109207653-8vn2jh1hd5nsobfce4b1hr471udur83d.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDhbuGooEH_x1H05X03Y1PljADQpueDLQQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "84109207653-8vn2jh1hd5nsobfce4b1hr471udur83d.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -26,6 +26,10 @@ import com.example.ui.theme.*
 fun SalvavidasScreen(
     /** null mientras no exista un adulto vinculado de verdad (no se simula el envío). */
     onRequestCompanion: (() -> Unit)?,
+    /** Por qué no se puede enviar todavía (se muestra si [onRequestCompanion] es null). */
+    unavailableText: String,
+    /** Abre "Mi familia" para vincularse; null si ya está vinculado. */
+    onOpenFamily: (() -> Unit)?,
     onOpenAllLines: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -67,7 +71,7 @@ fun SalvavidasScreen(
             )
             if (!hasLinkedAdult) {
                 Text(
-                    "Todavía no tienes un adulto vinculado. Cuando un adulto de tu familia vincule tu perfil, podrás enviarle tu solicitud desde aquí.",
+                    unavailableText,
                     fontFamily = NunitoFontFamily,
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
@@ -76,6 +80,14 @@ fun SalvavidasScreen(
                         .padding(top = MareaSpace.s)
                         .testTag("salvavidas_not_linked")
                 )
+                if (onOpenFamily != null) {
+                    MareaSecondaryButton(
+                        text = "Vincular con mi familia",
+                        onClick = onOpenFamily,
+                        tag = "salvavidas_open_family",
+                        modifier = Modifier.padding(top = MareaSpace.s)
+                    )
+                }
             }
         }
 

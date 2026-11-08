@@ -123,7 +123,7 @@ fun WelcomeScreen(
             PillarCard(
                 icon = "🔒",
                 title = com.example.ui.dialogs.PrivacyText.TITLE,
-                description = "Todo se guarda cifrado solo en este teléfono: sin internet, sin cuentas y sin copia en la nube. Puedes borrarlo cuando quieras desde el menú. Marea Club acompaña, pero no diagnostica ni reemplaza a un profesional."
+                description = "Lo que registras se guarda cifrado solo en este teléfono, sin copia en la nube. Si te vinculas con tu familia, solo se comparte el vínculo y tus pedidos de compañía. Puedes borrarlo todo desde el menú. Marea Club acompaña, pero no diagnostica ni reemplaza a un profesional."
             )
         }
 
