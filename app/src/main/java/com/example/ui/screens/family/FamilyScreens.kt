@@ -204,7 +204,7 @@ private enum class AdultTab(val label: String, val tag: String) {
     FAMILIA("Familia", "adult_tab_familia"),
     BITACORA("Bitácora", "adult_tab_bitacora"),
     CONEXION("Conexión", "adult_tab_conexion"),
-    CONFIG("Configuración", "adult_tab_config")
+    CONFIG("Ajustes", "adult_tab_config")
 }
 
 /** Perfil del adulto (Prompt Maestro §13): Resumen, Familia, Bitácora, Conexión familiar y Configuración. */
@@ -482,11 +482,11 @@ private fun AdultFamilyScreen(
                 Spacer(Modifier.height(MareaSpace.m))
                 MareaPrimaryButton("Generar código para el niño o niña", onClick = { family.generateCode(LinkRole.CHILD) }, enabled = !busy, tag = "adult_generate_child_code")
             }
-            BodyText(
-                "Si olvidó su PIN, genere un código nuevo: con él podrá crear otro PIN sin perder nada.",
-                Modifier.padding(top = MareaSpace.s), color = MareaTextMuted
-            )
             if (info?.hasChild == true) {
+                BodyText(
+                    "Si el niño o niña olvidó su PIN, genere un código nuevo: con él podrá crear otro PIN sin perder nada.",
+                    Modifier.padding(top = MareaSpace.s), color = MareaTextMuted
+                )
                 MareaSecondaryButton("Generar código para recuperar el PIN", onClick = { family.generateCode(LinkRole.CHILD) }, enabled = !busy, tag = "adult_generate_pin_code")
             }
         }
